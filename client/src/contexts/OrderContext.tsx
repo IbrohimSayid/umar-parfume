@@ -5,6 +5,7 @@ import { db } from '../lib/firebase';
 import { collection, addDoc, getDocs, query, where, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import { useAuth } from './AuthContext';
+import { ProductSize } from '../app/mahsulotlar/page'; // ProductSize interfeysini import qilish
 
 // Order interface
 interface Order {
@@ -61,7 +62,7 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
       const sizes: ProductSize[] = productData.sizes || [];
       
       // Tanlangan o'lcham uchun stock tekshirish
-      const selectedSizeIndex = sizes.findIndex((s: any) => s.size === orderData.size);
+      const selectedSizeIndex = sizes.findIndex((s: ProductSize) => s.size === orderData.size);
       if (selectedSizeIndex === -1) {
         toast.error('Tanlangan o\'lcham topilmadi');
         return false;

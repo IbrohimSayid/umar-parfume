@@ -13,6 +13,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 export interface ProductSize {
   size: string;
   price: number;
+  stock?: string | number;
   image: string;
 }
 

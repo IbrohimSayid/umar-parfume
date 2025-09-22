@@ -121,19 +121,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   // Setup reCAPTCHA
-  // const setupRecaptcha = () => {
-  //   if (typeof window !== 'undefined' && !(window as any).recaptchaVerifier) {
-  //     (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-  //       'size': 'invisible',
-  //       'callback': (response: any) => {
-  //         console.log('reCAPTCHA solved');
-  //       },
-  //       'expired-callback': () => {
-  //         console.log('reCAPTCHA expired');
-  //       }
-  //     });
-  //   }
-  // };
+  const setupRecaptcha = () => {
+    if (typeof window !== 'undefined' && !(window as any).recaptchaVerifier) {
+      (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible',
+        'callback': (response: any) => {
+          console.log('reCAPTCHA solved');
+        },
+        'expired-callback': () => {
+          console.log('reCAPTCHA expired');
+        }
+      });
+    }
+  };
 
   // Send SMS verification code
   const sendVerificationCode = async (phoneNumber: string): Promise<any> => {
