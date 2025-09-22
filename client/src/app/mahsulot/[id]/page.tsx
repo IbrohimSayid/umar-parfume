@@ -44,6 +44,7 @@ export default function MahsulotPage() {
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [selectedSize, setSelectedSize] = useState<ProductSize | null>(null);
   // const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  // const [setCurrentImageIndex, setCurrentImageIndex] = useState(0); // Ishlatilmagan
   const [isLoading, setIsLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [imageLoading, setImageLoading] = useState(false);

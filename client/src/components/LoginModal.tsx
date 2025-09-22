@@ -106,7 +106,6 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
           phoneNumber: foundUser.phoneNumber,
           isAnonymous: false
         }));
-        localStorage.setItem('userProfile', JSON.stringify(foundUser));
         
         // Success message
         alert(`✅ KIRISH MUVAFFAQIYATLI!\n\nXush kelibsiz, ${foundUser.firstName} ${foundUser.lastName}!`);

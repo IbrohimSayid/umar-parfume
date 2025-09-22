@@ -180,15 +180,15 @@ export default function MahsulotlarPage() {
     return new Intl.NumberFormat('uz-UZ').format(number) + ' so\'m';
   };
 
-  const formatPriceInput = (value: string) => {
-    const number = value.replace(/[^\d]/g, '');
-    return new Intl.NumberFormat('uz-UZ').format(parseInt(number) || 0);
-  };
+  // const formatPriceInput = (value: string) => {
+  //   const number = value.replace(/[^\d]/g, '');
+  //   return new Intl.NumberFormat('uz-UZ').format(parseInt(number) || 0);
+  // };
 
-  const handlePriceInputChange = (value: string, setter: (value: string) => void) => {
-    const formattedValue = formatPriceInput(value);
-    setter(formattedValue);
-  };
+  // const handlePriceInputChange = (value: string, setter: (value: string) => void) => {
+  //   const formattedValue = formatPriceInput(value);
+  //   setter(formattedValue);
+  // };
 
   const handleApplyFilters = () => {
     setIsFilterMenuOpen(false);
