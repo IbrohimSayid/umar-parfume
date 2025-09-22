@@ -288,10 +288,10 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
               <div>
                 <label className="block text-gray-700 font-semibold mb-2">{t.password} *</label>
                 <div className="relative">
-                  <input
+                <input
                     type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                     className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-all duration-200 text-gray-900 pr-10"
                     placeholder={t.password}
                   />

@@ -195,16 +195,16 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
                 {t.password} *
               </label>
               <div className="relative">
-                <input
+              <input
                   type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  required
+                name="password"
+                value={formData.password}
+                onChange={handleInputChange}
+                required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-black pr-10"
                   placeholder={t.password}
-                  disabled={loading}
-                />
+                disabled={loading}
+              />
                 <button 
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}

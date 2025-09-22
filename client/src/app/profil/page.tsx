@@ -45,7 +45,7 @@ export default function ProfilePage() {
       setIsLoading(false);
       return;
     }
-
+    
     try {
       const updatedProfile = {
         ...userProfile,
@@ -139,7 +139,7 @@ export default function ProfilePage() {
                 className="w-full border border-gray-300 rounded p-2 text-gray-900"
               />
             </div>
-
+            
             <div>
               <label className="block text-gray-700 mb-1">{t.phoneNumber}</label>
               <div className="flex">
@@ -265,17 +265,17 @@ export default function ProfilePage() {
               >
                 {t.deleteAccount}
               </button>
-
-              <button 
-                onClick={logout}
+            
+            <button
+              onClick={logout}
                 className="w-full border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors"
-              >
+            >
                 {t.logout}
-              </button>
+            </button>
             </div>
           </div>
         )}
-
+        
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -294,18 +294,18 @@ export default function ProfilePage() {
               <div className="p-6">
                 <p className="text-gray-600 mb-6 leading-relaxed">{t.deleteAccountInfo}</p>
                 <div className="flex space-x-3">
-                  <button 
+                <button
                     onClick={handleDeleteAccount}
                     className="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-xl font-semibold transition-colors"
-                  >
+                >
                     {t.deleteAccountConfirm}
-                  </button>
-                  <button
+                </button>
+                <button
                     onClick={() => setShowDeleteConfirm(false)}
                     className="flex-1 border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors"
-                  >
+                >
                     {t.cancel}
-                  </button>
+                </button>
                 </div>
               </div>
             </div>

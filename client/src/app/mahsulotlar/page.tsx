@@ -252,7 +252,7 @@ export default function MahsulotlarPage() {
               </div>
 
               <div className="md:w-64 space-y-8 bg-white p-6 rounded-2xl shadow-lg border border-gray-100 md:block">
-                {/* Category Filter */}
+              {/* Category Filter */}
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">{t.categories}</h3>
                   <div className="space-y-2">
@@ -277,7 +277,7 @@ export default function MahsulotlarPage() {
                         className="form-radio text-yellow-500"
                       />
                       <span className="ml-2">{t.men}</span>
-                    </label>
+                </label>
                     <label className="flex items-center text-gray-700">
                       <input
                         type="radio"
@@ -289,11 +289,11 @@ export default function MahsulotlarPage() {
                       />
                       <span className="ml-2">{t.women}</span>
                     </label>
-                  </div>
                 </div>
+              </div>
 
-                {/* Price Range Filter */}
-                <div>
+              {/* Price Range Filter */}
+                  <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">{t.priceRange}</h3>
                   <div className="flex items-center space-x-3">
                     <input
@@ -311,44 +311,44 @@ export default function MahsulotlarPage() {
                       onChange={(e) => setMaxPrice(e.target.value)}
                       className="w-1/2 border-2 border-gray-200 rounded-lg p-2 focus:border-yellow-400 focus:ring-0 text-gray-900"
                     />
-                  </div>
                 </div>
+              </div>
 
-                {/* Brand Filter */}
+              {/* Brand Filter */}
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">{t.brands}</h3>
                   <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                    {availableBrands.map((brand) => (
+                  {availableBrands.map((brand) => (
                       <label key={brand} className="flex items-center text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={selectedBrands.includes(brand)}
-                          onChange={() => handleBrandChange(brand)}
+                      <input
+                        type="checkbox"
+                        checked={selectedBrands.includes(brand)}
+                        onChange={() => handleBrandChange(brand)}
                           className="form-checkbox text-yellow-500"
-                        />
+                      />
                         <span className="ml-2">{brand}</span>
-                      </label>
-                    ))}
-                  </div>
+                    </label>
+                  ))}
                 </div>
+              </div>
 
-                {/* Fragrance Notes Filter */}
+              {/* Fragrance Notes Filter */}
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">{t.fragranceNotes}</h3>
                   <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                    {availableFragranceNotes.map((note) => (
+                  {availableFragranceNotes.map((note) => (
                       <label key={note} className="flex items-center text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={selectedFragranceNotes.includes(note)}
-                          onChange={() => handleFragranceNoteChange(note)}
+                      <input
+                        type="checkbox"
+                        checked={selectedFragranceNotes.includes(note)}
+                        onChange={() => handleFragranceNoteChange(note)}
                           className="form-checkbox text-yellow-500"
-                        />
+                      />
                         <span className="ml-2">{note}</span>
-                      </label>
-                    ))}
-                  </div>
+                    </label>
+                  ))}
                 </div>
+              </div>
 
                 {/* Action Buttons for Mobile */}
                 <div className="md:hidden flex justify-between mt-8 space-x-4">
@@ -358,12 +358,12 @@ export default function MahsulotlarPage() {
                   >
                     {t.applyFilters}
                   </button>
-                  <button 
+              <button
                     onClick={handleClearFilters}
                     className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-xl font-semibold"
-                  >
+              >
                     {t.clearFilters}
-                  </button>
+              </button>
                 </div>
               </div>
             </div>
@@ -448,85 +448,85 @@ export default function MahsulotlarPage() {
 
                 {/* Vertical Grid for Desktop and Larger Screens */}
                 <div className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredProducts.map((product) => (
-                    <div key={product.id} className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200">
-                      <Link href={`/mahsulot/${product.id}`}>
-                        <div className="cursor-pointer">
-                          <div className="aspect-w-3 aspect-h-4 bg-gray-200">
-                            <img 
-                              src={product.image} 
-                              alt={product.name}
-                              className="w-full h-64 object-cover"
-                              onError={(e) => {
-                                e.currentTarget.src = 'https://picsum.photos/300/400?random=error';
-                              }}
-                            />
-                          </div>
-                          <div className="p-4">
-                            <div className="flex justify-between items-start mb-2">
-                              <h3 className="text-lg font-semibold text-black">{product.name}</h3>
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                product.category === 'erkak' ? 'bg-blue-100 text-blue-800' :
-                                product.category === 'ayol' ? 'bg-pink-100 text-pink-800' :
-                                'bg-purple-100 text-purple-800'
-                              }`}>
+                {filteredProducts.map((product) => (
+                  <div key={product.id} className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200">
+                    <Link href={`/mahsulot/${product.id}`}>
+                      <div className="cursor-pointer">
+                        <div className="aspect-w-3 aspect-h-4 bg-gray-200">
+                          <img 
+                            src={product.image} 
+                            alt={product.name}
+                            className="w-full h-64 object-cover"
+                                                         onError={(e) => {
+                               e.currentTarget.src = 'https://picsum.photos/300/400?random=error';
+                             }}
+                          />
+                        </div>
+                        <div className="p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className="text-lg font-semibold text-black">{product.name}</h3>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              product.category === 'erkak' ? 'bg-blue-100 text-blue-800' :
+                              product.category === 'ayol' ? 'bg-pink-100 text-pink-800' :
+                              'bg-purple-100 text-purple-800'
+                            }`}>
                                 {product.category === 'erkak' ? t.men : 
                                  product.category === 'ayol' ? t.women : 'Unisex'}
-                              </span>
-                            </div>
-                            <p className="text-black mb-2 font-medium">{product.brand}</p>
-                            {product.fragrance_notes && product.fragrance_notes.length > 0 && (
-                              <div className="mb-3">
-                                <div className="flex flex-wrap gap-1">
-                                  {product.fragrance_notes.slice(0, 3).map((note, index) => (
-                                    <span key={index} className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                                      {note}
-                                    </span>
-                                  ))}
-                                  {product.fragrance_notes.length > 3 && (
-                                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
-                                      +{product.fragrance_notes.length - 3}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
+                            </span>
+                          </div>
+                          <p className="text-black mb-2 font-medium">{product.brand}</p>
+                          {product.fragrance_notes && product.fragrance_notes.length > 0 && (
                             <div className="mb-3">
-                              <p className="text-gray-600 text-sm line-clamp-2">
-                                {product.description}
-                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {product.fragrance_notes.slice(0, 3).map((note, index) => (
+                                  <span key={index} className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                                    {note}
+                                  </span>
+                                ))}
+                                {product.fragrance_notes.length > 3 && (
+                                  <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                                    +{product.fragrance_notes.length - 3}
+                                  </span>
+                                )}
+                              </div>
                             </div>
+                          )}
+                          <div className="mb-3">
+                            <p className="text-gray-600 text-sm line-clamp-2">
+                              {product.description}
+                            </p>
                           </div>
-                        </div>
-                      </Link>
-
-                      <div className="px-4 pb-4">
-                        <div className="text-center mb-3">
-                          <span className="text-lg font-bold text-black">
-                            {formatPrice(product.price)}
-                          </span>
-                          <div className="text-xs text-gray-500">
-                            {t.stock}: {product.stock} dona
-                          </div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <button 
-                            onClick={() => handleBuyNow(product.id)}
-                            className="flex-1 bg-yellow-400 text-black px-4 py-2 rounded-md hover:bg-yellow-500 transition-colors duration-200 font-medium"
-                          >
-                            {t.buyNow}
-                          </button>
-                          <button 
-                            onClick={() => handleAddToCart(product.id)}
-                            className="flex-1 bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200 font-medium"
-                          >
-                            {t.addToCart}
-                          </button>
                         </div>
                       </div>
+                    </Link>
+
+                    <div className="px-4 pb-4">
+                      <div className="text-center mb-3">
+                        <span className="text-lg font-bold text-black">
+                          {formatPrice(product.price)}
+                        </span>
+                        <div className="text-xs text-gray-500">
+                            {t.stock}: {product.stock} dona
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleBuyNow(product.id)}
+                          className="flex-1 bg-yellow-400 text-black px-4 py-2 rounded-md hover:bg-yellow-500 transition-colors duration-200 font-medium"
+                        >
+                            {t.buyNow}
+                        </button>
+                        <button 
+                          onClick={() => handleAddToCart(product.id)}
+                          className="flex-1 bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200 font-medium"
+                        >
+                            {t.addToCart}
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+              </div>
               </>
             )}
 

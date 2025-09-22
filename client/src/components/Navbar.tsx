@@ -103,7 +103,7 @@ export default function Navbar() {
                 <svg className={`w-4 h-4 transition-transform duration-200 ${isLanguageMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
-              </button>
+            </button>
 
               {/* Language Dropdown */}
               {isLanguageMenuOpen && (
@@ -168,7 +168,7 @@ export default function Navbar() {
                 </Link>
               </div>
             ) : (
-              <button
+              <button 
                 onClick={() => setIsAuthModalOpen(true)}
                 className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black px-4 py-2 rounded-full font-bold text-sm transition-all duration-200 transform hover:scale-105 shadow-lg cursor-pointer"
               >
@@ -227,7 +227,7 @@ export default function Navbar() {
               {item.name}
             </Link>
           ))}
-
+          
           {/* User actions in mobile menu */}
           {isAuthenticated() ? (
             <div className="border-t border-gray-700 pt-3 mt-3">
@@ -246,14 +246,14 @@ export default function Navbar() {
                   </div>
                 </div>
               </div>
-              <Link
-                href="/profil"
+              <Link 
+                href="/profil" 
                 className="text-white hover:text-yellow-400 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800 cursor-pointer"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Profilim
               </Link>
-              <button
+              <button 
                 onClick={() => {
                   setIsMenuOpen(false);
                   logout();
@@ -264,7 +264,7 @@ export default function Navbar() {
               </button>
             </div>
           ) : (
-            <button
+            <button 
               onClick={() => {
                 setIsMenuOpen(false);
                 setIsAuthModalOpen(true);
@@ -276,7 +276,7 @@ export default function Navbar() {
           )}
         </div>
       </div>
-
+      
       {/* Auth Modal */}
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </nav>

@@ -35,14 +35,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <LanguageProvider>
-          <AuthProvider>
-            <Navbar />
-            <OrderProvider>
-              {children}
-              <ToastContainer position="bottom-right" theme="dark" />
-            </OrderProvider>
+        <AuthProvider>
+          <Navbar />
+          <OrderProvider>
+            {children}
+            <ToastContainer position="bottom-right" theme="dark" />
+          </OrderProvider>
             <BottomNavbar />
-          </AuthProvider>
+        </AuthProvider>
         </LanguageProvider>
       </body>
     </html>
