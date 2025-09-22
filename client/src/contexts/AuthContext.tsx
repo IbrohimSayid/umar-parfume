@@ -4,10 +4,12 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
 import { 
   RecaptchaVerifier, 
-  signInWithPhoneNumber, 
-  PhoneAuthProvider, 
+  // signInWithPhoneNumber, // Ishlatilmagan
+  // PhoneAuthProvider, // Ishlatilmagan
   User, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  ConfirmationResult,
+  AuthError,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { toast } from 'react-toastify';
@@ -119,22 +121,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   // Setup reCAPTCHA
-  const setupRecaptcha = () => {
-    if (!(window as any).recaptchaVerifier) {
-      (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        'size': 'invisible',
-        'callback': (response: any) => {
-          console.log('reCAPTCHA solved');
-        },
-        'expired-callback': () => {
-          console.log('reCAPTCHA expired');
-        }
-      });
-    }
-  };
+  // const setupRecaptcha = () => {
+  //   if (typeof window !== 'undefined' && !(window as any).recaptchaVerifier) {
+  //     (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+  //       'size': 'invisible',
+  //       'callback': (response: any) => {
+  //         console.log('reCAPTCHA solved');
+  //       },
+  //       'expired-callback': () => {
+  //         console.log('reCAPTCHA expired');
+  //       }
+  //     });
+  //   }
+  // };
 
   // Send SMS verification code
-  const sendVerificationCode = async (phoneNumber: string) => {
+  const sendVerificationCode = async (phoneNumber: string): Promise<any> => {
     try {
       // Test rejimda ishlash (haqiqiy SMS yubormasdan)
       console.log('📱 TEST REJIMI: SMS kod yuborildi:', phoneNumber);
@@ -149,17 +151,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
       
       // Mock user yaratish (lekin Firebase ID bilan)
-      const mockUser = {
+      const mockUser: any = {
         uid: `user_${Date.now()}`,
         phoneNumber: phoneNumber,
-        isAnonymous: false
+        isAnonymous: false,
+        providerData: [],
+        metadata: { creationTime: '', lastSignInTime: '' },
+        delete: async () => {},
+        getIdToken: async () => '',
+        getIdTokenResult: async () => ({} as any),
+        reload: async () => {},
+        tenantId: null,
+        toJSON: () => ({}),
+        // Boshqa User xususiyatlari (agar kerak bo'lsa)
       };
       
       // Foydalanuvchini darhol o'rnatish
-      setUser(mockUser as any);
+      setUser(mockUser);
       
       // Mock confirmation result
-      (window as any).confirmationResult = {
+      const mockConfirmationResult: any = {
+        verificationId: '',
         confirm: async (code: string) => {
           if (code === testSmsCode) {
             return { user: mockUser };
@@ -169,7 +181,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       };
       
-      return { success: true, confirmationResult: (window as any).confirmationResult };
+      return { success: true, confirmationResult: mockConfirmationResult };
       
       /* HAQIQIY SMS YUBORISH - KEYINROQ YOQISH UCHUN
       setupRecaptcha();
@@ -182,18 +194,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       return { success: true, confirmationResult };
       */
-    } catch (error: any) {
+    } catch (error) {
       console.error('SMS sending error:', error);
       
       let errorMessage = 'SMS yuborishda xatolik yuz berdi';
-      if (error.code === 'auth/invalid-phone-number') {
-        errorMessage = 'Telefon raqam noto\'g\'ri formatda. Masalan: +998901234567';
-      } else if (error.code === 'auth/quota-exceeded') {
-        errorMessage = 'SMS limitiga yetdingiz. Keyinroq urinib ko\'ring.';
-      } else if (error.code === 'auth/operation-not-allowed') {
-        errorMessage = 'SMS xizmati hali yoqilmagan. Firebase Console da yoqing.';
-      } else if (error.code === 'auth/missing-verification-id') {
-        errorMessage = 'Tasdiqlash ID topilmadi. Qayta urinib ko\'ring.';
+      if (error && typeof error === 'object' && 'code' in error) {
+        if (error.code === 'auth/invalid-phone-number') {
+          errorMessage = 'Telefon raqam noto\'g\'ri formatda. Masalan: +998901234567';
+        } else if (error.code === 'auth/quota-exceeded') {
+          errorMessage = 'SMS limitiga yetdingiz. Keyinroq urinib ko\'ring.';
+        } else if (error.code === 'auth/operation-not-allowed') {
+          errorMessage = 'SMS xizmati hali yoqilmagan. Firebase Console da yoqing.';
+        } else if (error.code === 'auth/missing-verification-id') {
+          errorMessage = 'Tasdiqlash ID topilmadi. Qayta urinib ko\'ring.';
+        }
       }
       
       toast.error(errorMessage);
@@ -202,9 +216,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // Verify SMS code
-  const verifyCode = async (code: string) => {
+  const verifyCode = async (code: string): Promise<any> => {
     try {
-      if (!(window as any).confirmationResult) {
+      if (typeof window !== 'undefined' && !(window as any).confirmationResult) {
         toast.error('Avval telefon raqamni kiriting');
         return { success: false, error: 'Avval telefon raqamni kiriting' };
       }
@@ -223,14 +237,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.setItem('userData', JSON.stringify(result.user));
       
       return { success: true, user: result.user };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Verification error:', error);
       
       let errorMessage = 'Tasdiqlash kodini tekshirishda xatolik yuz berdi';
-      if (error.code === 'auth/invalid-verification-code') {
-        errorMessage = 'Noto\'g\'ri tasdiqlash kodi';
-      } else if (error.code === 'auth/code-expired') {
-        errorMessage = 'Tasdiqlash kodi muddati tugadi';
+      if (error && typeof error === 'object' && 'code' in error) {
+        if (error.code === 'auth/invalid-verification-code') {
+          errorMessage = 'Noto\'g\'ri tasdiqlash kodi';
+        } else if (error.code === 'auth/code-expired') {
+          errorMessage = 'Tasdiqlash kodi muddati tugadi';
+        }
       }
       
       toast.error(errorMessage);

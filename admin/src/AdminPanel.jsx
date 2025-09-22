@@ -19,7 +19,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// Analytics ni o'chirish (server-side rendering muammosini hal qilish uchun)
+// Analytics ni o&apos;chirish (server-side rendering muammosini hal qilish uchun)
 if (typeof window !== 'undefined') {
     // Faqat client-side da analytics yuklash
 }
@@ -72,7 +72,7 @@ const AdminPanel = () => {
     
     // Notalar ro'yxati
     const [availableNotes, setAvailableNotes] = useState([
-        'Sitrus mevalar', 'Darx notalari', 'Gul notalari', 'Yog\'och notalari',
+        'Sitrus mevalar', 'Darx notalari', 'Gul notalari', 'Yog&apos;och notalari',
         'Musk', 'Vanila', 'Bergamot', 'Jasmin', 'Sandalwood', 'Patchouli',
         'Lavanda', 'Mint', 'Qora murch', 'Amber', 'Oud', 'Limon'
     ]);
@@ -183,7 +183,7 @@ const AdminPanel = () => {
             querySnapshot.forEach((doc) => {
                 ordersData.push({ id: doc.id, ...doc.data() });
             });
-            // Sanaga ko'ra tartiblash (yangi birinchi)
+            // Sanaga ko&apos;ra tartiblash (yangi birinchi)
             ordersData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             setOrders(ordersData);
             console.log('✅ Buyurtmalar Firestore dan olindi:', ordersData);
@@ -192,7 +192,7 @@ const AdminPanel = () => {
         }
     };
 
-    // Buyurtma statusini o'zgartirish
+    // Buyurtma statusini o&apos;zgartirish
     const updateOrderStatus = async (orderId, newStatus) => {
         try {
             const orderRef = doc(db, "orders", orderId);
@@ -703,7 +703,7 @@ const AdminPanel = () => {
                                     value={loginData.password}
                                     onChange={(e) => setLoginData({...loginData, password: e.target.value})}
                                     className="w-full border-2 border-gray-200 rounded-xl p-3 text-gray-900 focus:border-yellow-400 focus:ring-0 transition-colors"
-                                    placeholder="Parolingizni kiriting"
+                                    placeholder="Parolingizni kiriting&apos;"
                                     required
                                 />
                             </div>
@@ -859,7 +859,7 @@ const AdminPanel = () => {
                                                             disabled={isLoading}
                                                             className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
                                                         >
-                                                            O'chirish
+                                                            O&apos;chirish
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -996,8 +996,8 @@ const AdminPanel = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                         </svg>
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday buyurtma yo'q</h3>
-                    <p className="text-gray-500">Mijozlar buyurtma berganda bu yerda ko'rinadi</p>
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday buyurtma yo&apos;q</h3>
+                    <p className="text-gray-500">Mijozlar buyurtma berganda bu yerda ko&apos;rinadi</p>
                 </div>
                             )}
             </div>
@@ -1016,7 +1016,7 @@ const AdminPanel = () => {
                             Mahsulotlar
                                         {isLoading && <span className="ml-2 text-sm text-gray-500">(Yuklanmoqda...)</span>}
                         </h2>
-                        <p className="text-gray-500 mt-1">Barcha mahsulotlar ro'yxati</p>
+                        <p className="text-gray-500 mt-1">Barcha mahsulotlar ro&apos;yxati</p>
                     </div>
                     <div className="flex items-center space-x-4">
                         <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-2 rounded-xl">
@@ -1030,7 +1030,7 @@ const AdminPanel = () => {
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
-                            Mahsulot qo'shish
+                            Mahsulot qo&apos;shish
                         </button>
                     </div>
                 </div>
@@ -1065,7 +1065,7 @@ const AdminPanel = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{product.brand}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{product.price} so'm</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{product.price} so&apos;m</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {product.sizes && product.sizes.length > 0 ? (
                                             <div className="space-y-1">
@@ -1103,7 +1103,7 @@ const AdminPanel = () => {
                                             disabled={isLoading}
                                             className="bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
                                         >
-                                            O'chirish
+                                            O&apos;chirish
                                         </button>
                                     </td>
                                 </tr>
@@ -1118,8 +1118,8 @@ const AdminPanel = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                             </svg>
                         </div>
-                        <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday mahsulot yo'q</h3>
-                        <p className="text-gray-500">Yangi mahsulot qo'shish uchun yuqoridagi tugmani bosing</p>
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday mahsulot yo&apos;q</h3>
+                        <p className="text-gray-500">Yangi mahsulot qo&apos;shish uchun yuqoridagi tugmani bosing</p>
                     </div>
                         )}
                 </div>
@@ -1150,7 +1150,7 @@ const AdminPanel = () => {
                                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                     </svg>
-                                    Admin qo'shish
+                                    Admin qo&apos;shish
                                 </button>
                             </div>
                         </div>
@@ -1251,7 +1251,7 @@ const AdminPanel = () => {
                                                 onClick={() => deleteAdmin(admin.id)}
                                                 className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-xs font-medium transition-colors"
                                             >
-                                                O'chirish
+                                                O&apos;chirish
                                             </button>
                                         </td>
                                     </tr>
@@ -1267,8 +1267,8 @@ const AdminPanel = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                                 </svg>
                             </div>
-                            <h3 className="text-xl font-semibold text-gray-700 mb-2">Boshqa adminlar yo'q</h3>
-                            <p className="text-gray-500">Yangi admin qo'shish uchun yuqoridagi tugmani bosing</p>
+                            <h3 className="text-xl font-semibold text-gray-700 mb-2">Boshqa adminlar yo&apos;q</h3>
+                            <p className="text-gray-500">Yangi admin qo&apos;shish uchun yuqoridagi tugmani bosing</p>
                         </div>
                     )}
                 </div>
@@ -1305,7 +1305,7 @@ const AdminPanel = () => {
                                 <svg className="w-8 h-8 mr-3 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
-                                {isEditMode ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot qo\'shish'}
+                                {isEditMode ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot qo&apos;shish'}
                             </h3>
                             <button 
                                 onClick={closeProductModal}
@@ -1385,7 +1385,7 @@ const AdminPanel = () => {
                                 onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
                                 className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
                                 rows={3}
-                                placeholder="Mahsulot haqida qisqacha ma'lumot..."
+                                placeholder="Mahsulot haqida qisqacha ma&apos;lumot..."
                             />
                         </div>
                         
@@ -1410,7 +1410,7 @@ const AdminPanel = () => {
                             {/* Notalar sozlamalari */}
                             {showNotesSettings && (
                                 <div className="bg-blue-50 p-4 rounded-xl mb-4">
-                                    <h5 className="font-medium text-gray-900 mb-3">Yangi nota qo'shish</h5>
+                                    <h5 className="font-medium text-gray-900 mb-3">Yangi nota qo&apos;shish</h5>
                                     <div className="flex space-x-2">
                                         <input
                                             type="text"
@@ -1462,7 +1462,7 @@ const AdminPanel = () => {
                                 <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17v4a2 2 0 002 2h4M13 5v4a2 2 0 002 2h4" />
                                 </svg>
-                                O'lchamlar va narxlar
+                                O&apos;lchamlar va narxlar
                             </h4>
                             <div className="space-y-4">
                                 {newProduct.sizes.map((size, index) => (
@@ -1471,14 +1471,14 @@ const AdminPanel = () => {
                                         className="bg-gray-50 p-4 rounded-xl border-2 border-gray-100 hover:border-gray-200 transition-colors"
                                     >
                                         <div className="flex items-center justify-between mb-3">
-                                            <span className="text-sm font-medium text-gray-700">O'lcham {index + 1}</span>
+                                            <span className="text-sm font-medium text-gray-700">O&apos;lcham {index + 1}</span>
                                             {newProduct.sizes.length > 1 && (
                                                 <button
                                                     type="button"
                                                     onClick={() => removeSize(index)}
                                                     className="text-red-500 hover:text-red-700 text-sm font-medium"
                                                 >
-                                                    O'chirish
+                                                    O&apos;chirish
                                                 </button>
                                             )}
                                         </div>
@@ -1521,7 +1521,7 @@ const AdminPanel = () => {
                                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                     </svg>
-                                    Yana o'lcham qo'shish
+                                    Yana o&apos;lcham qo&apos;shish
                                 </button>
                             </div>
                         </div>
@@ -1539,7 +1539,7 @@ const AdminPanel = () => {
                                     disabled={isLoading}
                                     className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg disabled:opacity-50"
                             >
-                                    {isLoading ? 'Saqlanmoqda...' : isEditMode ? 'Mahsulotni saqlash' : 'Mahsulotni saqlash'}
+                                    {isLoading ? 'Saqlanmoqda...&apos;' : isEditMode ? 'Mahsulotni saqlash&apos;' : 'Mahsulotni saqlash&apos;}
                             </button>
                         </div>
                     </form>

@@ -23,7 +23,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
     password: ''
   });
 
-  const { userProfile, checkPhoneExists } = useAuth();
+  const { checkPhoneExists } = useAuth();
   const { t } = useLanguage();
 
   // Handle form input changes
@@ -248,14 +248,14 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
             {/* Switch to Register */}
             <div className="text-center mt-4">
               <p className="text-sm text-black">
-                Akkauntingiz yo'qmi?{' '}
+                Akkauntingiz yo&apos;qmi?{' '}
                 <button 
                   type="button"
                   className="text-yellow-600 hover:text-yellow-700 font-medium"
                   onClick={onSwitchToRegister}
                   disabled={loading}
                 >
-                  Ro'yxatdan o'tish
+                  Ro&apos;yxatdan o&apos;tish
                 </button>
               </p>
             </div>

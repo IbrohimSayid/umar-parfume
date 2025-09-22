@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image'; // Import Image component
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrder } from '../../contexts/OrderContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -112,10 +113,12 @@ export default function BuyurtmalarimPage() {
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-4">
-                      <img 
+                      <Image 
                         src={order.productImage} 
                         alt={order.productName}
-                        className="w-16 h-16 rounded-lg object-cover"
+                        width={64}
+                        height={64}
+                        className="rounded-lg object-cover"
                       />
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900">{order.productName}</h3>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image'; // Import Image component
 import { useAuth } from '../../contexts/AuthContext';
 import AuthModal from '../../components/AuthModal';
 import LoginModal from '../../components/LoginModal';
@@ -9,13 +10,13 @@ import { db } from '../../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { useLanguage } from '../../contexts/LanguageContext';
 
-interface ProductSize {
+export interface ProductSize {
   size: string;
   price: number;
   image: string;
 }
 
-interface Product {
+export interface Product {
   id: string;
   name: string;
   brand: string;
@@ -95,10 +96,11 @@ export default function MahsulotlarPage() {
   }, []);
 
   // Handle buy now button click
-  const handleBuyNow = (productId: string) => {
+  const handleBuyNow = () => {
     if (isAuthenticated()) {
       // User is authenticated, redirect to product page
-      window.location.href = `/mahsulot/${productId}`;
+      // window.location.href = `/mahsulot/${productId}`;
+      alert(t.buyNowSuccess);
     } else {
       // User is not authenticated, show auth modal
       setShowAuthModal(true);
@@ -106,10 +108,10 @@ export default function MahsulotlarPage() {
   };
 
   // Handle add to cart button click
-  const handleAddToCart = (productId: string) => {
+  const handleAddToCart = () => {
     if (isAuthenticated()) {
       // Add to cart logic here
-      alert('Mahsulot savatga qo\'shildi!');
+      alert(t.addToCartSuccess);
     } else {
       // User is not authenticated, show auth modal
       setShowAuthModal(true);
@@ -118,14 +120,14 @@ export default function MahsulotlarPage() {
 
   // Handle successful authentication
   const handleAuthSuccess = () => {
-    alert('Muvaffaqiyatli ro\'yxatdan o\'tdingiz!');
+    alert(t.profileUpdateSuccess);
   };
 
   // Switch between modals
-  const handleSwitchToLogin = () => {
-    setShowAuthModal(false);
-    setShowLoginModal(true);
-  };
+  // const handleSwitchToLogin = () => {
+  //   setShowAuthModal(false);
+  //   setShowLoginModal(true);
+  // };
 
   const handleSwitchToRegister = () => {
     setShowLoginModal(false);
@@ -392,9 +394,11 @@ export default function MahsulotlarPage() {
                         <Link href={`/mahsulot/${product.id}`}>
                           <div className="cursor-pointer">
                             <div className="aspect-w-3 aspect-h-4 bg-gray-200">
-                              <img 
-                                src={product.image} 
+                              <Image 
+                                src={product.image || ''} 
                                 alt={product.name}
+                                width={224} // w-56, h-48
+                                height={192} // w-56, h-48
                                 className="w-full h-48 object-cover"
                                 onError={(e) => {
                                   e.currentTarget.src = 'https://picsum.photos/300/400?random=error';
@@ -428,13 +432,13 @@ export default function MahsulotlarPage() {
                           </div>
                           <div className="flex space-x-2">
                             <button 
-                              onClick={() => handleBuyNow(product.id)}
+                              onClick={() => handleBuyNow()}
                               className="flex-1 bg-yellow-400 text-black px-3 py-1.5 rounded-md hover:bg-yellow-500 transition-colors duration-200 text-sm font-medium"
                             >
                               {t.buyNow}
                             </button>
                             <button 
-                              onClick={() => handleAddToCart(product.id)}
+                              onClick={() => handleAddToCart()}
                               className="flex-1 bg-gray-800 text-white px-3 py-1.5 rounded-md hover:bg-gray-700 transition-colors duration-200 text-sm font-medium"
                             >
                               {t.addToCart}
@@ -453,13 +457,15 @@ export default function MahsulotlarPage() {
                     <Link href={`/mahsulot/${product.id}`}>
                       <div className="cursor-pointer">
                         <div className="aspect-w-3 aspect-h-4 bg-gray-200">
-                          <img 
-                            src={product.image} 
+                          <Image 
+                            src={product.image || ''} 
                             alt={product.name}
+                            width={256} // w-64, h-64
+                            height={256} // w-64, h-64
                             className="w-full h-64 object-cover"
-                                                         onError={(e) => {
-                               e.currentTarget.src = 'https://picsum.photos/300/400?random=error';
-                             }}
+                            onError={(e) => {
+                              e.currentTarget.src = 'https://picsum.photos/300/400?random=error';
+                            }}
                           />
                         </div>
                         <div className="p-4">
@@ -511,13 +517,13 @@ export default function MahsulotlarPage() {
                       </div>
                       <div className="flex space-x-2">
                         <button 
-                          onClick={() => handleBuyNow(product.id)}
+                          onClick={() => handleBuyNow()}
                           className="flex-1 bg-yellow-400 text-black px-4 py-2 rounded-md hover:bg-yellow-500 transition-colors duration-200 font-medium"
                         >
                             {t.buyNow}
                         </button>
                         <button 
-                          onClick={() => handleAddToCart(product.id)}
+                          onClick={() => handleAddToCart()}
                           className="flex-1 bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200 font-medium"
                         >
                             {t.addToCart}

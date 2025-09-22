@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+// import { useState } from 'react'; // Ishlatilmagan
 
 interface SignupRequiredModalProps {
   isOpen: boolean;
@@ -25,7 +25,7 @@ const SignupRequiredModal = ({ isOpen, onClose, onSignup }: SignupRequiredModalP
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-white">
-                  Ro'yxatdan o'ting
+                  Ro&apos;yxatdan o&apos;tish
                 </h2>
                 <p className="text-white/80 text-sm">
                   Buyurtma berish uchun
@@ -49,9 +49,9 @@ const SignupRequiredModal = ({ isOpen, onClose, onSignup }: SignupRequiredModalP
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
               </svg>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Buyurtma berish uchun ro'yxatdan o'ting</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Buyurtma berish uchun ro&apos;yxatdan o&apos;ting</h3>
             <p className="text-gray-600 leading-relaxed">
-              Mahsulotlarni buyurtma berish va buyurtmalaringizni kuzatish uchun avval tizimda ro'yxatdan o'tishingiz kerak.
+              Mahsulotlarni buyurtma berish va buyurtmalaringizni kuzatish uchun avval tizimda ro&apos;yxatdan o&apos;tishingiz kerak.
             </p>
           </div>
           
@@ -71,7 +71,7 @@ const SignupRequiredModal = ({ isOpen, onClose, onSignup }: SignupRequiredModalP
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <span className="text-sm">Buyurtmalar tarixini ko'rish</span>
+              <span className="text-sm">Buyurtmalar tarixini ko&apos;rish</span>
             </div>
             <div className="flex items-center space-x-3 text-gray-700">
               <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
@@ -87,7 +87,7 @@ const SignupRequiredModal = ({ isOpen, onClose, onSignup }: SignupRequiredModalP
               onClick={onSignup}
               className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
             >
-              Ro'yxatdan o'tish
+              Ro&apos;yxatdan o&apos;tish
             </button>
             
             <button

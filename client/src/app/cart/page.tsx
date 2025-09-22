@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image'; // Import Image component
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -151,7 +152,7 @@ export default function CartPage() {
             <div className="lg:col-span-2 space-y-6">
               {cartItems.map(item => (
                 <div key={item.id} className="flex items-center bg-white rounded-2xl shadow-lg p-5 border border-gray-100">
-                  <img src={item.productImage} alt={item.productName} className="w-24 h-24 object-cover rounded-xl mr-5" />
+                  <Image src={item.productImage} alt={item.productName} width={96} height={96} className="w-24 h-24 object-cover rounded-xl mr-5" />
                   <div className="flex-grow">
                     <h3 className="text-lg font-semibold text-gray-900">{item.productName}</h3>
                     <p className="text-gray-600 text-sm">{t.size}: {item.size}</p>

@@ -66,6 +66,8 @@ interface Translations {
   loginRequired: string;
   signupRequired: string;
   redirectToOrders: string;
+  buyNowSuccess: string;
+  addToCartSuccess: string;
   
   // Order page
   myOrders: string;
@@ -206,6 +208,8 @@ const translations: Record<Language, Translations> = {
     loginRequired: 'Tizimga kirish kerak',
     signupRequired: 'Buyurtma berish uchun ro\'yxatdan o\'ting',
     redirectToOrders: '2 sekund ichida "Buyurtmalarim" sahifasiga yo\'naltirilasiz...',
+    buyNowSuccess: 'Xarid muvaffaqiyatli qabul qilindi!',
+    addToCartSuccess: 'Mahsulot savatga muvaffaqiyatli qo\'shildi!',
     
     // Order page
     myOrders: 'Buyurtmalarim',
@@ -343,6 +347,8 @@ const translations: Record<Language, Translations> = {
     loginRequired: 'Необходимо войти в систему',
     signupRequired: 'Зарегистрируйтесь для размещения заказа',
     redirectToOrders: 'Через 2 секунды будете перенаправлены на страницу "Мои заказы"...',
+    buyNowSuccess: 'Заказ успешно принят!',
+    addToCartSuccess: 'Товар успешно добавлен в корзину!',
     
     // Order page
     myOrders: 'Мои заказы',

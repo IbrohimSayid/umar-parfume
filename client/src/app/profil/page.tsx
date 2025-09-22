@@ -15,7 +15,7 @@ export default function ProfilePage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [password, setPassword] = useState('');
+  // const [password, setPassword] = useState(''); // Ishlatilmagan
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

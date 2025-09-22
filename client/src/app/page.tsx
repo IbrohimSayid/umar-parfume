@@ -7,10 +7,11 @@ import { db } from '../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { Product } from '../app/mahsulotlar/page'; // Product interfeysini import qilish
 
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { t } = useLanguage();
   const { isAuthenticated } = useAuth();
@@ -20,9 +21,22 @@ export default function Home() {
     const fetchProducts = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, "products"));
-        const productsData: any[] = [];
+        const productsData: Product[] = [];
         querySnapshot.forEach((doc) => {
-          productsData.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          productsData.push({
+            id: doc.id,
+            name: data.name || '',
+            brand: data.brand || '',
+            price: data.price || '0',
+            image: data.image || 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=300&h=400&fit=crop', // Default image
+            description: data.description || '',
+            stock: data.stock || 0,
+            status: data.status || 'mavjud',
+            sizes: data.sizes || [],
+            category: data.category || 'erkak',
+            fragrance_notes: data.fragrance_notes || []
+          } as Product);
         });
                   // Faqat 10 ta mahsulotni olish (asosiy sahifa uchun)
           const limitedProducts = productsData.slice(0, 10);
@@ -38,7 +52,12 @@ export default function Home() {
             brand: "Demo Brand",
             price: "500,000",
             image: "https://images.unsplash.com/photo-1541643600914-78b084683601?w=300&h=400&fit=crop",
-            description: "Demo mahsulot"
+            description: "Demo mahsulot",
+            sizes: [], // Empty sizes array
+            category: 'erkak', // Default category
+            fragrance_notes: [], // Empty fragrance notes
+            stock: 10, // Default stock
+            status: 'mavjud' // Default status
           }
         ]);
       } finally {
@@ -140,9 +159,9 @@ export default function Home() {
                                 <p className="text-sm text-gray-600 mb-2">{product.brand}</p>
                                 <p className="text-xs text-gray-500 mb-3">{product.description}</p>
                                 <div className="flex justify-between items-center">
-                                  <span className="text-xl font-bold text-yellow-600">{product.price} so'm</span>
+                                  <span className="text-xl font-bold text-yellow-600">{product.price} so&apos;m</span>
                                   <button className="bg-black text-white px-3 py-1 rounded text-sm hover:bg-gray-800 transition-colors cursor-pointer">
-                                    Ko'rish
+                                    Ko&apos;rish
                                   </button>
                                 </div>
                               </div>
@@ -197,8 +216,8 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday mahsulot yo'q</h3>
-              <p className="text-gray-500">Admin paneldan mahsulot qo'shing</p>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday mahsulot yo&apos;q</h3>
+              <p className="text-gray-500">Admin paneldan mahsulot qo&apos;shing</p>
             </div>
           )}
         </div>

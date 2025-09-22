@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext /* , useEffect */ } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, getDocs, query, where, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
@@ -42,7 +42,7 @@ const OrderContext = createContext<OrderContextType | undefined>(undefined);
 export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { /* user */ } = useAuth(); // `user` ishlatilmagani uchun olib tashladim
 
   // Buyurtma berish
   const createOrder = async (orderData: Omit<Order, 'id' | 'createdAt' | 'status'>): Promise<boolean> => {
@@ -58,7 +58,7 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       const productData = productDoc.data();
-      const sizes = productData.sizes || [];
+      const sizes: ProductSize[] = productData.sizes || [];
       
       // Tanlangan o'lcham uchun stock tekshirish
       const selectedSizeIndex = sizes.findIndex((s: any) => s.size === orderData.size);
@@ -92,8 +92,8 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       // Umumiy stock ni ham yangilash
-      const totalStock = updatedSizes.reduce((sum: number, size: any) => {
-        return sum + (parseInt(size.stock) || 0);
+      const totalStock = updatedSizes.reduce((sum: number, size: ProductSize) => {
+        return sum + (parseInt(size.stock as string) || 0);
       }, 0);
 
       await updateDoc(productRef, {

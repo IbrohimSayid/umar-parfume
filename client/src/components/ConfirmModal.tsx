@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+// import { useState } from 'react'; // Ishlatilmagan
 
 interface ConfirmModalProps {
   isOpen: boolean;

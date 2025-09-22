@@ -11,6 +11,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import SuccessModal from '../../../components/SuccessModal';
 import AuthModal from '../../../components/AuthModal';
 import SignupRequiredModal from '../../../components/SignupRequiredModal';
+import Image from 'next/image'; // Import Image component
 
 interface ProductSize {
   size: string;
@@ -42,14 +43,14 @@ export default function MahsulotPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [selectedSize, setSelectedSize] = useState<ProductSize | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  // const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [imageLoading, setImageLoading] = useState(false);
 
   // Auth and Order hooks
   const { user, userProfile, isAuthenticated } = useAuth();
-  const { createOrder, loading: orderLoading } = useOrder();
+  const { createOrder /* , loading: orderLoading */ } = useOrder();
 
   // Modal states
   const [confirmModal, setConfirmModal] = useState({
@@ -339,18 +340,19 @@ export default function MahsulotPage() {
                 </div>
               )}
               
-              <img 
+              <Image 
                 src={selectedSize ? 
-                  getSizeImage(selectedSize) : 
-                  product.image
+                  (getSizeImage(selectedSize) || '') : // undefined bo'lsa bo'sh string
+                  (product?.image || '') // undefined bo'lsa bo'sh string
                 } 
                 alt={`${product.name} - ${selectedSize?.size || 'asosiy'}`}
+                width={500} // Example width, adjust as needed
+                height={500} // Example height, adjust as needed
                 className={`w-full h-96 object-cover transition-all duration-500 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
                 onLoad={() => setImageLoading(false)}
-                onLoadStart={() => setImageLoading(true)}
-                onError={(e) => {
-                  setImageLoading(false);
-                  e.currentTarget.src = 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=400&h=500&fit=crop&auto=format&q=80';
+                onLoadingComplete={() => setImageLoading(false)}
+                onError={() => {
+                  // e.currentTarget.src = 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=400&h=500&fit=crop&auto=format&q=80';
                 }}
               />
               
@@ -395,7 +397,7 @@ export default function MahsulotPage() {
                   <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
-                  <span className="text-gray-600">To'lov xavfsiz</span>
+                  <span className="text-gray-600">To&apos;lov xavfsiz</span>
                 </div>
               </div>
             </div>
@@ -457,7 +459,7 @@ export default function MahsulotPage() {
             {/* Size Selection */}
             {product.sizes && product.sizes.length > 0 && (
               <div className="bg-white rounded-2xl shadow-lg p-5">
-                <h3 className="text-lg font-bold text-gray-900 mb-3">O'lcham tanlang</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-3">O&apos;lcham tanlang</h3>
                 <div className="grid grid-cols-3 gap-3">
                   {product.sizes.map((size, index) => (
                     <button
@@ -537,14 +539,14 @@ export default function MahsulotPage() {
                   disabled={(selectedSize ? (parseInt(selectedSize.stock as string) || 0) : product.stock) === 0}
                   className="w-full bg-gray-800 text-white py-3 rounded-xl font-bold text-base hover:bg-gray-700 transition-all duration-200 disabled:opacity-50"
                 >
-                  Savatga qo'shish
+                  Savatga qo&apos;shish
                 </button>
               </div>
               
               {selectedSize && (
                 <div className="mt-3 p-3 bg-gray-50 rounded-xl">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-gray-700">Tanlangan o'lcham:</span>
+                    <span className="text-gray-700">Tanlangan o&apos;lcham:</span>
                     <span className="font-semibold text-gray-900">{selectedSize.size}</span>
                   </div>
                   <div className="flex justify-between items-center text-xs mt-1">
@@ -575,18 +577,20 @@ export default function MahsulotPage() {
         {/* Related Products */}
         {relatedProducts.length > 0 && (
           <div className="mt-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">O'xshash mahsulotlar</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">O&apos;xshash mahsulotlar</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {relatedProducts.map((relatedProduct) => (
                 <Link key={relatedProduct.id} href={`/mahsulot/${relatedProduct.id}`}>
                   <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer transform hover:scale-[1.02]">
                     <div className="aspect-w-3 aspect-h-4 bg-gray-200">
-                      <img 
-                        src={relatedProduct.image} 
+                      <Image 
+                        src={relatedProduct.image || ''} // undefined bo'lsa bo'sh string
                         alt={relatedProduct.name}
+                        width={192} // 48 * 4
+                        height={192} // 48 * 4
                         className="w-full h-48 object-cover"
-                        onError={(e) => {
-                          e.currentTarget.src = 'https://picsum.photos/300/400?random=related';
+                        onError={() => {
+                          // e.currentTarget.src = 'https://picsum.photos/300/400?random=related';
                         }}
                       />
                     </div>

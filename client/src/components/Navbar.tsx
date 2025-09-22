@@ -116,7 +116,7 @@ export default function Navbar() {
                     className={`w-full px-4 py-2 text-left hover:bg-gray-800 transition-colors duration-200 flex items-center space-x-3 ${language === 'uz' ? 'bg-gray-800 text-yellow-400' : 'text-white'}`}
                   >
                     <span className="text-lg">🇺🇿</span>
-                    <span className="font-medium">O'zbek</span>
+                    <span className="font-medium">O&apos;zbek</span>
                     {language === 'uz' && (
                       <svg className="w-4 h-4 ml-auto text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
