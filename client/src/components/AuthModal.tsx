@@ -32,7 +32,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
     useRef<HTMLInputElement>(null),
   ];
   
-  const { sendVerificationCode, verifyCode, saveUserProfile, checkPhoneExists } = useAuth();
+  const { sendVerificationCode, verifyCode, saveUserProfile, checkPhoneExists, loginWithCredentials } = useAuth();
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -73,19 +73,36 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
     
+    if (isLoginMode) {
+      setIsLoading(true);
+      setError('');
+      try {
+        const formattedPhone = `+998${phoneNumber}`;
+        const result = await loginWithCredentials(formattedPhone, password);
+        if (result.success) {
+          if (onSuccess) onSuccess();
+          onClose();
+        } else {
+          setError(result.error || 'Kirishda xatolik yuz berdi');
+        }
+      } catch (error: any) {
+        setError(error.message || 'Kirishda xatolik yuz berdi');
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     setIsLoading(true);
     setError('');
     
     try {
       const formattedPhone = `+998${phoneNumber}`;
       
-      // Register rejimida telefon raqam mavjudligini tekshirish
-      if (!isLoginMode) {
-        const phoneExists = await checkPhoneExists(formattedPhone);
-        if (phoneExists) {
-          setError('Bu telefon raqam allaqachon ro yxatdan o tgan. Login qiling yoki boshqa raqam kiriting.');
-          return;
-        }
+      const phoneExists = await checkPhoneExists(formattedPhone);
+      if (phoneExists) {
+        setError('Bu telefon raqam allaqachon ro\'yxatdan o\'tgan. Login qiling yoki boshqa raqam kiriting.');
+        return;
       }
       
       const result = await sendVerificationCode(formattedPhone);
@@ -150,30 +167,23 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
       const result = await verifyCode(code);
       
       if (result.success) {
-        if (!isLoginMode) {
-          // Ro'yxatdan o'tish rejimida foydalanuvchi ma'lumotlarini saqlash
-          const profile = {
-            uid: result.user.uid,
-            phoneNumber: result.user.phoneNumber || `+998${phoneNumber}`,
-            firstName,
-            lastName,
-            password
-          };
-          
-          const saved = await saveUserProfile(profile);
-          
-          if (saved) {
-            toast.success('Ro\'yxatdan o\'tish muvaffaqiyatli yakunlandi!');
-            if (onSuccess) onSuccess();
-            onClose();
-          } else {
-            setError('Profil saqlashda xatolik yuz berdi');
-          }
-        } else {
-          // Kirish rejimida - faqat xabar ko'rsatish
-          toast.success('Muvaffaqiyatli kirdingiz!');
+        // Ro'yxatdan o'tish rejimida foydalanuvchi ma'lumotlarini saqlash
+        const profile = {
+          uid: result.user.uid,
+          phoneNumber: result.user.phoneNumber || `+998${phoneNumber}`,
+          firstName,
+          lastName,
+          password
+        };
+        
+        const saved = await saveUserProfile(profile);
+        
+        if (saved) {
+          toast.success('Ro\'yxatdan o\'tish muvaffaqiyatli yakunlandi!');
           if (onSuccess) onSuccess();
           onClose();
+        } else {
+          setError('Profil saqlashda xatolik yuz berdi');
         }
       } else {
         setError(result.error || 'Tasdiqlash kodini tekshirishda xatolik');
@@ -196,6 +206,8 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
 
   const toggleMode = () => {
     setIsLoginMode(!isLoginMode);
+    setStep(1);
+    setSmsCode(['', '', '', '', '', '']);
     setError('');
   };
 
@@ -323,7 +335,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
                   {isLoading ? (
                     <div className="flex items-center justify-center">
                       <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin mr-2"></div>
-                      SMS yuborilmoqda...
+                      {isLoginMode ? 'Tekshirilmoqda...' : 'SMS yuborilmoqda...'}
                     </div>
                   ) : (
                     isLoginMode ? 'Kirish' : 'Ro\'yxatdan o\'tish'

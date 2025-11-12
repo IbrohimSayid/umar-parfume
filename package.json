@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "build:client": "npm --prefix client run build",
+    "build:admin": "npm --prefix admin run build",
+    "build": "npm run build:client && npm run build:admin"
+  },
   "dependencies": {
     "firebase": "^12.2.1"
   }

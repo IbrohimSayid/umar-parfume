@@ -7,8 +7,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import AuthModal from '../../components/AuthModal';
 import LoginModal from '../../components/LoginModal';
 import { db } from '../../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { toast } from 'react-toastify';
 
 export interface ProductSize {
   size: string;
@@ -32,12 +33,12 @@ export interface Product {
 }
 
 // Available brands and fragrance notes
-const availableBrands = [
+const DEFAULT_BRANDS = [
   'Chanel', 'Dior', 'Lancôme', 'Yves Saint Laurent', 'Paco Rabanne', 
   'Carolina Herrera', 'Tom Ford', 'Versace', 'Giorgio Armani', 'Dolce & Gabbana'
 ];
 
-const availableFragranceNotes = [
+const DEFAULT_FRAGRANCE_NOTES = [
   'Sitrus mevalar', 'Darx notalari', 'Gul notalari', 'Yog\'och notalari',
   'Musk', 'Vanila', 'Bergamot', 'Jasmin', 'Sandalwood', 'Patchouli',
   'Lavanda', 'Mint', 'Qora murch', 'Amber', 'Oud', 'Limon',
@@ -56,20 +57,28 @@ export default function MahsulotlarPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [brandOptions, setBrandOptions] = useState<string[]>(DEFAULT_BRANDS);
+  const [noteOptions, setNoteOptions] = useState<string[]>(DEFAULT_FRAGRANCE_NOTES);
+  const [isFiltersLoading, setIsFiltersLoading] = useState(true);
 
   const { isAuthenticated } = useAuth();
   const { t } = useLanguage();
 
   // Firebase'dan mahsulotlarni olish
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setIsFiltersLoading(true);
       try {
-        const querySnapshot = await getDocs(collection(db, "products"));
+        const productsSnapshot = await getDocs(collection(db, "products"));
         const productsData: Product[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          productsData.push({
-            id: doc.id,
+        const productBrands = new Set<string>();
+        const productNotes = new Set<string>();
+
+        productsSnapshot.forEach((snapshotDoc) => {
+          const data = snapshotDoc.data();
+          const product: Product = {
+            id: snapshotDoc.id,
             name: data.name || '',
             brand: data.brand || '',
             price: data.price || '0',
@@ -77,31 +86,74 @@ export default function MahsulotlarPage() {
             description: data.description || '',
             stock: data.stock || 0,
             status: data.status || 'mavjud',
-                        // Default qiymatlar
             sizes: data.sizes || [{ size: '50ml', price: parseInt(data.price?.replace(/[^\d]/g, '') || '0'), image: data.image || '' }],
             category: data.category || 'erkak',
             fragrance_notes: data.fragrance_notes || []
-          });
+          };
+
+          productsData.push(product);
+
+          if (product.brand) {
+            productBrands.add(product.brand);
+          }
+          if (Array.isArray(product.fragrance_notes)) {
+            product.fragrance_notes.filter(Boolean).forEach((note: string) => {
+              productNotes.add(note);
+            });
+          }
         });
+
         setProducts(productsData);
         console.log('✅ Client: Mahsulotlar olindi:', productsData);
+
+        try {
+          const catalogDocRef = doc(db, "settings", "catalog");
+          const catalogSnapshot = await getDoc(catalogDocRef);
+          if (catalogSnapshot.exists()) {
+            const catalogData = catalogSnapshot.data() || {};
+            if (Array.isArray(catalogData.brands)) {
+              catalogData.brands.filter(Boolean).forEach((brand: string) => productBrands.add(brand));
+            }
+            if (Array.isArray(catalogData.notes)) {
+              catalogData.notes.filter(Boolean).forEach((note: string) => productNotes.add(note));
+            }
+          }
+        } catch (catalogError) {
+          console.error('⚠️ Katalog sozlamalarini olishda xatolik:', catalogError);
+        }
+
+        const mergedBrands = productBrands.size ? Array.from(productBrands) : DEFAULT_BRANDS;
+        const mergedNotes = productNotes.size ? Array.from(productNotes) : DEFAULT_FRAGRANCE_NOTES;
+        setBrandOptions(mergedBrands);
+        setNoteOptions(mergedNotes);
       } catch (error) {
         console.error('❌ Client: Mahsulotlarni olishda xatolik:', error);
         setProducts([]);
+        setBrandOptions(DEFAULT_BRANDS);
+        setNoteOptions(DEFAULT_FRAGRANCE_NOTES);
       } finally {
         setIsLoading(false);
+        setIsFiltersLoading(false);
       }
     };
 
-    fetchProducts();
+    fetchData();
   }, []);
+
+  useEffect(() => {
+    setSelectedBrands((prev) => prev.filter((brand) => brandOptions.includes(brand)));
+  }, [brandOptions]);
+
+  useEffect(() => {
+    setSelectedFragranceNotes((prev) => prev.filter((note) => noteOptions.includes(note)));
+  }, [noteOptions]);
 
   // Handle buy now button click
   const handleBuyNow = () => {
     if (isAuthenticated()) {
       // User is authenticated, redirect to product page
       // window.location.href = `/mahsulot/${productId}`;
-      alert(t.buyNowSuccess);
+      toast.success(t.buyNowSuccess);
     } else {
       // User is not authenticated, show auth modal
       setShowAuthModal(true);
@@ -109,19 +161,65 @@ export default function MahsulotlarPage() {
   };
 
   // Handle add to cart button click
-  const handleAddToCart = () => {
-    if (isAuthenticated()) {
-      // Add to cart logic here
-      alert(t.addToCartSuccess);
-    } else {
-      // User is not authenticated, show auth modal
-      setShowAuthModal(true);
+  const parsePriceValue = (price: string | number) => {
+    if (typeof price === 'number') {
+      return price;
     }
+    const digits = price.replace(/[^\d]/g, '');
+    return digits ? parseInt(digits) : 0;
+  };
+
+  const getStoredCart = (): any[] => {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem('cartItems');
+    if (!stored) return [];
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  };
+
+  const saveCart = (items: any[]) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('cartItems', JSON.stringify(items));
+    const totalCount = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: totalCount } }));
+  };
+
+  const handleAddToCart = (productItem: Product) => {
+    if (!productItem.sizes || !productItem.sizes.length) {
+      toast.info('Bu mahsulot uchun o\'lcham mavjud emas');
+      return;
+    }
+
+    const selectedSize = productItem.sizes[0];
+    const priceValue = parsePriceValue(selectedSize.price);
+    const cartItems = getStoredCart();
+    const id = `${productItem.id}-${selectedSize.size}`;
+    const existingIndex = cartItems.findIndex((item) => item.id === id);
+
+    if (existingIndex >= 0) {
+      cartItems[existingIndex].quantity += 1;
+    } else {
+      cartItems.push({
+        id,
+        productId: productItem.id,
+        productName: productItem.name,
+        productImage: productItem.image,
+        size: selectedSize.size,
+        price: priceValue,
+        quantity: 1
+      });
+    }
+
+    saveCart(cartItems);
+    toast.success(`${productItem.name} (${selectedSize.size}) savatga qo'shildi`);
   };
 
   // Handle successful authentication
   const handleAuthSuccess = () => {
-    alert(t.profileUpdateSuccess);
+    toast.success(t.profileUpdateSuccess);
   };
 
   // Switch between modals
@@ -203,6 +301,40 @@ export default function MahsulotlarPage() {
     setSearchTerm('');
   };
 
+  const activeFilterTags = [
+    ...selectedBrands.map((brand) => ({
+      key: `brand-${brand}`,
+      label: brand,
+      onRemove: () => handleBrandChange(brand),
+    })),
+    ...selectedFragranceNotes.map((note) => ({
+      key: `note-${note}`,
+      label: note,
+      onRemove: () => handleFragranceNoteChange(note),
+    })),
+  ];
+
+  if (selectedCategory !== 'all') {
+    activeFilterTags.push({
+      key: 'category',
+      label: selectedCategory === 'erkak' ? t.men : selectedCategory === 'ayol' ? t.women : 'Unisex',
+      onRemove: () => setSelectedCategory('all'),
+    });
+  }
+
+  if (minPrice || maxPrice) {
+    activeFilterTags.push({
+      key: 'price',
+      label: `${minPrice || '0'} - ${maxPrice || '∞'} so'm`,
+      onRemove: () => {
+        setMinPrice('');
+        setMaxPrice('');
+      },
+    });
+  }
+
+  const activeFilterCount = activeFilterTags.length;
+
   return (
     <div className="bg-gray-50 pb-20">
       {/* Page Header */}
@@ -254,119 +386,257 @@ export default function MahsulotlarPage() {
                 </button>
               </div>
 
-              <div className="md:w-64 space-y-8 bg-white p-6 rounded-2xl shadow-lg border border-gray-100 md:block">
-              {/* Category Filter */}
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">{t.categories}</h3>
-                  <div className="space-y-2">
-                    <label className="flex items-center text-gray-700">
-                      <input
-                        type="radio"
-                        name="category"
-                        value="all"
-                        checked={selectedCategory === 'all'}
-                        onChange={() => setSelectedCategory('all')}
-                        className="form-radio text-yellow-500"
-                      />
-                      <span className="ml-2">Barchasi</span>
-                    </label>
-                    <label className="flex items-center text-gray-700">
-                      <input
-                        type="radio"
-                        name="category"
-                        value="erkak"
-                        checked={selectedCategory === 'erkak'}
-                        onChange={() => setSelectedCategory('erkak')}
-                        className="form-radio text-yellow-500"
-                      />
-                      <span className="ml-2">{t.men}</span>
-                </label>
-                    <label className="flex items-center text-gray-700">
-                      <input
-                        type="radio"
-                        name="category"
-                        value="ayol"
-                        checked={selectedCategory === 'ayol'}
-                        onChange={() => setSelectedCategory('ayol')}
-                        className="form-radio text-yellow-500"
-                      />
-                      <span className="ml-2">{t.women}</span>
-                    </label>
-                </div>
-              </div>
+              <div className="md:w-72 lg:w-80 space-y-6 md:block">
+                <div className="bg-white/90 backdrop-blur-sm p-6 rounded-3xl shadow-xl border border-gray-200 md:sticky md:top-28 space-y-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 uppercase tracking-wide">{t.filter}</h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {activeFilterCount > 0 ? `${activeFilterCount} ta filtr tanlangan` : 'Filtrlarni tanlang'}
+                      </p>
+                    </div>
+                    {activeFilterCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearFilters}
+                        className="text-sm font-semibold text-yellow-600 hover:text-yellow-700 transition-colors"
+                      >
+                        {t.clearFilters}
+                      </button>
+                    )}
+                  </div>
 
-              {/* Price Range Filter */}
-                  <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">{t.priceRange}</h3>
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="number"
-                      placeholder={t.min}
-                      value={minPrice}
-                      onChange={(e) => setMinPrice(e.target.value)}
-                      className="w-1/2 border-2 border-gray-200 rounded-lg p-2 focus:border-yellow-400 focus:ring-0 text-gray-900"
-                    />
-                    <span>-</span>
-                    <input
-                      type="number"
-                      placeholder={t.max}
-                      value={maxPrice}
-                      onChange={(e) => setMaxPrice(e.target.value)}
-                      className="w-1/2 border-2 border-gray-200 rounded-lg p-2 focus:border-yellow-400 focus:ring-0 text-gray-900"
-                    />
-                </div>
-              </div>
+                  {activeFilterTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {activeFilterTags.map((tag) => (
+                        <button
+                          key={tag.key}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            tag.onRemove();
+                          }}
+                          className="inline-flex items-center space-x-2 px-3 py-1.5 bg-gray-100 hover:bg-yellow-100 text-sm text-gray-700 rounded-full border border-gray-200 transition-colors"
+                        >
+                          <span>{tag.label}</span>
+                          <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-              {/* Brand Filter */}
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">{t.brands}</h3>
-                  <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                  {availableBrands.map((brand) => (
-                      <label key={brand} className="flex items-center text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={selectedBrands.includes(brand)}
-                        onChange={() => handleBrandChange(brand)}
-                          className="form-checkbox text-yellow-500"
-                      />
-                        <span className="ml-2">{brand}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                  <div className="space-y-6">
+                    {/* Category Filter */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        {t.categories}
+                      </h4>
+                      <div className="space-y-2">
+                        <label
+                          className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-colors ${
+                            selectedCategory === 'all'
+                              ? 'border-yellow-500 bg-yellow-50 text-yellow-700 shadow-sm'
+                              : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name="category"
+                              value="all"
+                              checked={selectedCategory === 'all'}
+                              onChange={() => setSelectedCategory('all')}
+                              className="form-radio text-yellow-500 focus:ring-yellow-400"
+                            />
+                            <span className="font-medium">Barchasi</span>
+                          </div>
+                          {selectedCategory === 'all' && (
+                            <svg className="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </label>
+                        <label
+                          className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-colors ${
+                            selectedCategory === 'erkak'
+                              ? 'border-yellow-500 bg-yellow-50 text-yellow-700 shadow-sm'
+                              : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name="category"
+                              value="erkak"
+                              checked={selectedCategory === 'erkak'}
+                              onChange={() => setSelectedCategory('erkak')}
+                              className="form-radio text-yellow-500 focus:ring-yellow-400"
+                            />
+                            <span className="font-medium">{t.men}</span>
+                          </div>
+                          {selectedCategory === 'erkak' && (
+                            <svg className="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </label>
+                        <label
+                          className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-colors ${
+                            selectedCategory === 'ayol'
+                              ? 'border-yellow-500 bg-yellow-50 text-yellow-700 shadow-sm'
+                              : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name="category"
+                              value="ayol"
+                              checked={selectedCategory === 'ayol'}
+                              onChange={() => setSelectedCategory('ayol')}
+                              className="form-radio text-yellow-500 focus:ring-yellow-400"
+                            />
+                            <span className="font-medium">{t.women}</span>
+                          </div>
+                          {selectedCategory === 'ayol' && (
+                            <svg className="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </label>
+                      </div>
+                    </div>
 
-              {/* Fragrance Notes Filter */}
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">{t.fragranceNotes}</h3>
-                  <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                  {availableFragranceNotes.map((note) => (
-                      <label key={note} className="flex items-center text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={selectedFragranceNotes.includes(note)}
-                        onChange={() => handleFragranceNoteChange(note)}
-                          className="form-checkbox text-yellow-500"
-                      />
-                        <span className="ml-2">{note}</span>
-                    </label>
-                  ))}
+                    {/* Price Range Filter */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        {t.priceRange}
+                      </h4>
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="number"
+                          placeholder={t.min}
+                          value={minPrice}
+                          onChange={(e) => setMinPrice(e.target.value)}
+                          className="w-1/2 border-2 border-gray-200 rounded-lg p-2 focus:border-yellow-400 focus:ring-0 text-gray-900 bg-gray-50"
+                        />
+                        <span className="text-gray-400">-</span>
+                        <input
+                          type="number"
+                          placeholder={t.max}
+                          value={maxPrice}
+                          onChange={(e) => setMaxPrice(e.target.value)}
+                          className="w-1/2 border-2 border-gray-200 rounded-lg p-2 focus:border-yellow-400 focus:ring-0 text-gray-900 bg-gray-50"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Brand Filter */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        {t.brands}
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                        {isFiltersLoading ? (
+                          <div className="flex items-center justify-center py-6">
+                            <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin mr-2"></div>
+                            <span className="text-sm text-gray-500">Yuklanmoqda...</span>
+                          </div>
+                        ) : (
+                          brandOptions.map((brand) => {
+                            const isSelected = selectedBrands.includes(brand);
+                            return (
+                              <label
+                                key={brand}
+                                className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-colors text-sm ${
+                                  isSelected
+                                    ? 'border-yellow-500 bg-yellow-50 text-yellow-700 shadow-sm'
+                                    : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handleBrandChange(brand)}
+                                    className="form-checkbox text-yellow-500 focus:ring-yellow-400"
+                                  />
+                                  <span className="font-medium">{brand}</span>
+                                </div>
+                                {isSelected && (
+                                  <svg className="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Fragrance Notes Filter */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        {t.fragranceNotes}
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                        {isFiltersLoading ? (
+                          <div className="flex items-center justify-center py-6">
+                            <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin mr-2"></div>
+                            <span className="text-sm text-gray-500">Yuklanmoqda...</span>
+                          </div>
+                        ) : (
+                          noteOptions.map((note) => {
+                            const isSelected = selectedFragranceNotes.includes(note);
+                            return (
+                              <label
+                                key={note}
+                                className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-colors text-sm ${
+                                  isSelected
+                                    ? 'border-yellow-500 bg-yellow-50 text-yellow-700 shadow-sm'
+                                    : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handleFragranceNoteChange(note)}
+                                    className="form-checkbox text-yellow-500 focus:ring-yellow-400"
+                                  />
+                                  <span className="font-medium">{note}</span>
+                                </div>
+                                {isSelected && (
+                                  <svg className="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
                 {/* Action Buttons for Mobile */}
-                <div className="md:hidden flex justify-between mt-8 space-x-4">
+                <div className="md:hidden flex justify-between space-x-4">
                   <button 
                     onClick={handleApplyFilters}
-                    className="flex-1 bg-yellow-400 text-black px-4 py-2 rounded-xl font-semibold"
+                    className="flex-1 bg-yellow-400 text-black px-4 py-2 rounded-xl font-semibold shadow-md"
                   >
                     {t.applyFilters}
                   </button>
-              <button
+                  <button
                     onClick={handleClearFilters}
                     className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-xl font-semibold"
-              >
+                  >
                     {t.clearFilters}
-              </button>
+                  </button>
                 </div>
               </div>
             </div>
@@ -439,7 +709,7 @@ export default function MahsulotlarPage() {
                               {t.buyNow}
                             </button>
                             <button 
-                              onClick={() => handleAddToCart()}
+                              onClick={() => handleAddToCart(product)}
                               className="flex-1 bg-gray-800 text-white px-3 py-1.5 rounded-md hover:bg-gray-700 transition-colors duration-200 text-sm font-medium"
                             >
                               {t.addToCart}
@@ -524,7 +794,7 @@ export default function MahsulotlarPage() {
                             {t.buyNow}
                         </button>
                         <button 
-                          onClick={() => handleAddToCart()}
+                          onClick={() => handleAddToCart(product)}
                           className="flex-1 bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200 font-medium"
                         >
                             {t.addToCart}

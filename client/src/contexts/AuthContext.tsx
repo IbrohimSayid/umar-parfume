@@ -11,7 +11,7 @@ import {
   ConfirmationResult,
   AuthError,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 
 // User profile interface
@@ -29,6 +29,7 @@ interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   sendVerificationCode: (phoneNumber: string) => Promise<any>;
+  loginWithCredentials: (phoneNumber: string, password: string) => Promise<any>;
   verifyCode: (code: string) => Promise<any>;
   saveUserProfile: (profile: UserProfile) => Promise<boolean>;
   checkPhoneExists: (phoneNumber: string) => Promise<boolean>;
@@ -166,9 +167,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Boshqa User xususiyatlari (agar kerak bo'lsa)
       };
       
-      // Foydalanuvchini darhol o'rnatish
-      setUser(mockUser);
-      
       // Mock confirmation result
       const mockConfirmationResult: any = {
         verificationId: '',
@@ -180,6 +178,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
         }
       };
+
+      if (typeof window !== 'undefined') {
+        (window as any).confirmationResult = mockConfirmationResult;
+        (window as any).pendingMockUser = mockUser;
+      }
       
       return { success: true, confirmationResult: mockConfirmationResult };
       
@@ -224,19 +227,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       const result = await (window as any).confirmationResult.confirm(code);
-      setUser(result.user);
+      const confirmedUser = result.user || (typeof window !== 'undefined' ? (window as any).pendingMockUser : null);
+      if (!confirmedUser) {
+        toast.error('Foydalanuvchi maʼlumotlari topilmadi');
+        return { success: false, error: 'Foydalanuvchi topilmadi' };
+      }
+
+      setUser(confirmedUser);
+      if (typeof window !== 'undefined') {
+        delete (window as any).pendingMockUser;
+        delete (window as any).confirmationResult;
+      }
       
       // 1 oylik token yaratish
-      const token = `umar_parfume_${Date.now()}_${result.user.uid}`;
+      const token = `umar_parfume_${Date.now()}_${confirmedUser.uid}`;
       const expiryDate = new Date();
       expiryDate.setMonth(expiryDate.getMonth() + 1); // 1 oy qo'shish
       
       // Token va ma'lumotlarni saqlash
       localStorage.setItem('userAuthToken', token);
       localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
-      localStorage.setItem('userData', JSON.stringify(result.user));
+      localStorage.setItem('userData', JSON.stringify(confirmedUser));
       
-      return { success: true, user: result.user };
+      return { success: true, user: confirmedUser };
     } catch (error) {
       console.error('Verification error:', error);
       
@@ -337,45 +350,76 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Check if phone number already exists
   const checkPhoneExists = async (phoneNumber: string): Promise<boolean> => {
     try {
-      // Firestore'dan tekshirish
       const usersCollection = collection(db, "users");
-      const querySnapshot = await getDocs(usersCollection);
-      
-      let phoneExists = false;
-      querySnapshot.forEach((doc) => {
-        const userData = doc.data();
-        if (userData.phoneNumber === phoneNumber) {
-          phoneExists = true;
-        }
-      });
-      
-      if (phoneExists) {
+      const phoneQuery = query(usersCollection, where("phoneNumber", "==", phoneNumber));
+      const querySnapshot = await getDocs(phoneQuery);
+      const exists = !querySnapshot.empty;
+      if (exists) {
         console.log('📱 Telefon raqam Firestore da mavjud:', phoneNumber);
-        return true;
+      } else {
+        console.log('✅ Telefon raqam mavjud emas:', phoneNumber);
       }
-      
-      // localStorage dan ham tekshirish (fallback)
-      const allKeys = Object.keys(localStorage);
-      const userKeys = allKeys.filter(key => key.startsWith('userProfile_'));
-      
-      for (const key of userKeys) {
-        try {
-          const userData = JSON.parse(localStorage.getItem(key) || '{}');
-          if (userData.phoneNumber === phoneNumber) {
-            console.log('📱 Telefon raqam localStorage da mavjud:', phoneNumber);
-            return true;
-          }
-        } catch (error) {
-          console.error('localStorage ma lumotini o qishda xatolik:', error);
-        }
-      }
-      
-      console.log('✅ Telefon raqam mavjud emas:', phoneNumber);
-      return false;
+      return exists;
     } catch (error) {
       console.error('Telefon raqam tekshirishda xatolik:', error);
       // Xatolik bo'lsa, ehtiyot chorasi sifatida false qaytarish
       return false;
+    }
+  };
+
+  const loginWithCredentials = async (phoneNumber: string, password: string) => {
+    try {
+      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+      const usersCollection = collection(db, "users");
+      const phoneQuery = query(usersCollection, where("phoneNumber", "==", formattedPhone));
+      const querySnapshot = await getDocs(phoneQuery);
+      
+      if (querySnapshot.empty) {
+        toast.error('Bu telefon raqami bilan foydalanuvchi topilmadi');
+        return { success: false, error: 'Telefon raqami topilmadi' };
+      }
+
+      const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data() as UserProfile;
+
+      if (!userData.password || userData.password !== password) {
+        toast.error('Parol noto‘g‘ri');
+        return { success: false, error: 'Parol noto\'g\'ri' };
+      }
+
+      const authUser: any = {
+        uid: userData.uid || userDoc.id,
+        phoneNumber: userData.phoneNumber,
+        isAnonymous: false,
+        providerData: [],
+        metadata: { creationTime: '', lastSignInTime: '' },
+        delete: async () => {},
+        getIdToken: async () => '',
+        getIdTokenResult: async () => ({} as any),
+        reload: async () => {},
+        tenantId: null,
+        toJSON: () => ({})
+      };
+
+      setUser(authUser);
+      setUserProfile(userData);
+
+      const token = `umar_parfume_${Date.now()}_${authUser.uid}`;
+      const expiryDate = new Date();
+      expiryDate.setMonth(expiryDate.getMonth() + 1);
+
+      localStorage.setItem('userAuthToken', token);
+      localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
+      localStorage.setItem('userData', JSON.stringify(authUser));
+      localStorage.setItem('userProfile', JSON.stringify(userData));
+      localStorage.setItem(`userProfile_${authUser.uid}`, JSON.stringify(userData));
+
+      toast.success('Muvaffaqiyatli kirdingiz!');
+      return { success: true, user: authUser };
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('Kirishda xatolik yuz berdi');
+      return { success: false, error: 'Login error' };
     }
   };
 
@@ -384,6 +428,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       user,
       userProfile,
       sendVerificationCode,
+      loginWithCredentials,
       verifyCode,
       saveUserProfile,
       checkPhoneExists,

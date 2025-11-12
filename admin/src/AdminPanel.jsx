@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, setDoc, updateDoc, getDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // Firebase config
@@ -24,6 +24,25 @@ if (typeof window !== 'undefined') {
     // Faqat client-side da analytics yuklash
 }
 
+const DEFAULT_NOTES = [
+    'Sitrus mevalar', 'Darx notalari', 'Gul notalari', 'Yog\'och notalari',
+    'Musk', 'Vanila', 'Bergamot', 'Jasmin', 'Sandalwood', 'Patchouli',
+    'Lavanda', 'Mint', 'Qora murch', 'Amber', 'Oud', 'Limon'
+];
+
+const DEFAULT_BRANDS = [
+    'Chanel', 'Dior', 'Lancôme', 'Yves Saint Laurent', 'Paco Rabanne',
+    'Carolina Herrera', 'Tom Ford', 'Versace', 'Giorgio Armani', 'Dolce & Gabbana'
+];
+
+const DEFAULT_SIZES = [
+    '5ml', '7ml', '10ml', '15ml', '30ml', '50ml', '75ml', '100ml', 'Full'
+];
+
+const CATALOG_SETTINGS_PATH = { collection: 'settings', doc: 'catalog' };
+const ADMIN_SESSION_STORAGE_KEY = 'umar_admin_session';
+const ADMIN_SESSION_DURATION_DAYS = 30;
+
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState('users');
     const [users, setUsers] = useState([]);
@@ -33,6 +52,7 @@ const AdminPanel = () => {
     const [showAdminModal, setShowAdminModal] = useState(false);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [dashboardLoading, setDashboardLoading] = useState(false);
     
     // Edit product state
     const [editingProduct, setEditingProduct] = useState(null);
@@ -67,17 +87,26 @@ const AdminPanel = () => {
         description: '',
         category: 'erkak',
         fragranceNotes: [],
-        sizes: [{ size: '', price: '', stock: '', image: null }]
+        sizes: []
     });
     
-    // Notalar ro'yxati
-    const [availableNotes, setAvailableNotes] = useState([
-        'Sitrus mevalar', 'Darx notalari', 'Gul notalari', 'Yog&apos;och notalari',
-        'Musk', 'Vanila', 'Bergamot', 'Jasmin', 'Sandalwood', 'Patchouli',
-        'Lavanda', 'Mint', 'Qora murch', 'Amber', 'Oud', 'Limon'
-    ]);
+    // Filter sozlamalari
+    const [availableNotes, setAvailableNotes] = useState(DEFAULT_NOTES);
+    const [availableBrands, setAvailableBrands] = useState(DEFAULT_BRANDS);
+    const [availableSizes, setAvailableSizes] = useState(DEFAULT_SIZES);
+    const [showBrandSettings, setShowBrandSettings] = useState(false);
     const [showNotesSettings, setShowNotesSettings] = useState(false);
+    const [showSizeSettings, setShowSizeSettings] = useState(false);
     const [newNote, setNewNote] = useState('');
+    const [newBrand, setNewBrand] = useState('');
+    const [newSizeValue, setNewSizeValue] = useState('');
+    const [editingBrand, setEditingBrand] = useState(null);
+    const [editingBrandValue, setEditingBrandValue] = useState('');
+    const [editingSize, setEditingSize] = useState(null);
+    const [editingSizeValue, setEditingSizeValue] = useState('');
+    const [showFilterSettingsModal, setShowFilterSettingsModal] = useState(false);
+    const [catalogLoading, setCatalogLoading] = useState(false);
+    const [catalogSaving, setCatalogSaving] = useState(false);
     
     // Admin ma'lumotlari
     const [adminInfo, setAdminInfo] = useState({
@@ -192,6 +221,300 @@ const AdminPanel = () => {
         }
     };
 
+    const loadCatalogSettings = async () => {
+        setCatalogLoading(true);
+        try {
+            const catalogDocRef = doc(db, CATALOG_SETTINGS_PATH.collection, CATALOG_SETTINGS_PATH.doc);
+            const snapshot = await getDoc(catalogDocRef);
+            if (snapshot.exists()) {
+                const data = snapshot.data() || {};
+                const notes = Array.isArray(data.notes) && data.notes.length ? data.notes : DEFAULT_NOTES;
+                const brands = Array.isArray(data.brands) && data.brands.length ? data.brands : DEFAULT_BRANDS;
+                const sizes = Array.isArray(data.sizes) && data.sizes.length ? data.sizes : DEFAULT_SIZES;
+                setAvailableNotes(notes);
+                setAvailableBrands(brands);
+                setAvailableSizes(sizes);
+            } else {
+                const defaults = {
+                    notes: DEFAULT_NOTES,
+                    brands: DEFAULT_BRANDS,
+                    sizes: DEFAULT_SIZES,
+                    updatedAt: new Date().toISOString()
+                };
+                await setDoc(catalogDocRef, defaults);
+                setAvailableNotes(DEFAULT_NOTES);
+                setAvailableBrands(DEFAULT_BRANDS);
+                setAvailableSizes(DEFAULT_SIZES);
+            }
+        } catch (error) {
+            console.error('❌ Filter sozlamalarini yuklashda xatolik:', error);
+            showConfirmModal(
+                'Xatolik!',
+                'Filter sozlamalarini yuklashda xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko\'ring.',
+                () => {},
+                'error'
+            );
+        } finally {
+            setCatalogLoading(false);
+        }
+    };
+
+    const persistCatalogSettings = async (updates) => {
+        setCatalogSaving(true);
+        try {
+            const catalogDocRef = doc(db, CATALOG_SETTINGS_PATH.collection, CATALOG_SETTINGS_PATH.doc);
+            await setDoc(catalogDocRef, {
+                ...updates,
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+        } catch (error) {
+            console.error('❌ Filter sozlamalarini saqlashda xatolik:', error);
+            showConfirmModal(
+                'Xatolik!',
+                'Sozlamalarni saqlashda xatolik yuz berdi. Iltimos, qayta urinib ko\'ring.',
+                () => {},
+                'error'
+            );
+        } finally {
+            setCatalogSaving(false);
+        }
+    };
+
+    const handleAddBrand = async () => {
+        const trimmed = newBrand.trim();
+        if (!trimmed) {
+            return;
+        }
+        if (availableBrands.some(brand => brand.toLowerCase() === trimmed.toLowerCase())) {
+            showConfirmModal(
+                'Diqqat!',
+                'Bu brend ro\'yxatda allaqachon mavjud.',
+                () => {},
+                'warning'
+            );
+            return;
+        }
+        const updatedBrands = [...availableBrands, trimmed];
+        setAvailableBrands(updatedBrands);
+        setNewBrand('');
+        await persistCatalogSettings({ brands: updatedBrands });
+        showSuccessModal('Muvaffaqiyat!', `${trimmed} brendi qo\'shildi.`);
+    };
+
+    const handleRemoveBrand = async (brand) => {
+        const updatedBrands = availableBrands.filter(item => item !== brand);
+        setAvailableBrands(updatedBrands);
+        if (newProduct.brand === brand) {
+            setNewProduct({ ...newProduct, brand: '' });
+        }
+        if (editingBrand === brand) {
+            setEditingBrand(null);
+            setEditingBrandValue('');
+        }
+        await persistCatalogSettings({ brands: updatedBrands });
+        showSuccessModal('O\'chirildi', `${brand} brendi ro\'yxatdan o\'chirildi.`);
+    };
+
+    const startEditBrand = (brand) => {
+        setEditingBrand(brand);
+        setEditingBrandValue(brand);
+    };
+
+    const cancelBrandEdit = () => {
+        setEditingBrand(null);
+        setEditingBrandValue('');
+    };
+
+    const handleSaveBrandEdit = async () => {
+        const trimmed = editingBrandValue.trim();
+        if (!editingBrand || !trimmed) {
+            return;
+        }
+        if (availableBrands.some(brand => brand.toLowerCase() === trimmed.toLowerCase() && brand !== editingBrand)) {
+            showConfirmModal(
+                'Diqqat!',
+                'Kiritilgan brend nomi ro\'yxatda mavjud.',
+                () => {},
+                'warning'
+            );
+            return;
+        }
+        const updatedBrands = availableBrands.map(brand => brand === editingBrand ? trimmed : brand);
+        setAvailableBrands(updatedBrands);
+        if (newProduct.brand === editingBrand) {
+            setNewProduct({ ...newProduct, brand: trimmed });
+        }
+        await persistCatalogSettings({ brands: updatedBrands });
+        setEditingBrand(null);
+        setEditingBrandValue('');
+        showSuccessModal('Yangilandi', 'Brend nomi yangilandi.');
+    };
+
+    const handleAddSize = async () => {
+        const trimmed = newSizeValue.trim();
+        if (!trimmed) {
+            return;
+        }
+        if (availableSizes.some(size => size.toLowerCase() === trimmed.toLowerCase())) {
+            showConfirmModal(
+                'Diqqat!',
+                'Bu o\'lcham ro\'yxatda allaqachon mavjud.',
+                () => {},
+                'warning'
+            );
+            return;
+        }
+        const updatedSizes = [...availableSizes, trimmed];
+        setAvailableSizes(updatedSizes);
+        setNewSizeValue('');
+        await persistCatalogSettings({ sizes: updatedSizes });
+        showSuccessModal('Muvaffaqiyat!', `${trimmed} o'lchami qo'shildi.`);
+    };
+
+    const handleRemoveSize = async (sizeName) => {
+        const updatedSizes = availableSizes.filter(item => item !== sizeName);
+        setAvailableSizes(updatedSizes);
+        setNewProduct(prev => ({
+            ...prev,
+            sizes: prev.sizes.filter(size => size.size !== sizeName)
+        }));
+        await persistCatalogSettings({ sizes: updatedSizes });
+
+        try {
+            setIsLoading(true);
+            const productsSnapshot = await getDocs(collection(db, "products"));
+            const updatePromises = [];
+            const productUpdates = [];
+
+            productsSnapshot.forEach((docSnap) => {
+                const data = docSnap.data() || {};
+                const productSizes = Array.isArray(data.sizes) ? data.sizes : [];
+                if (productSizes.some(size => size.size === sizeName)) {
+                    const filteredSizes = productSizes.filter(size => size.size !== sizeName);
+                    const totalStock = filteredSizes.reduce((sum, size) => sum + (parseInt(size.stock) || 0), 0);
+                    updatePromises.push(setDoc(doc(db, "products", docSnap.id), {
+                        sizes: filteredSizes,
+                        stock: totalStock,
+                        status: totalStock > 0 ? 'mavjud' : 'mavjud emas',
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true }));
+                    productUpdates.push({
+                        id: docSnap.id,
+                        sizes: filteredSizes,
+                        stock: totalStock,
+                        status: totalStock > 0 ? 'mavjud' : 'mavjud emas'
+                    });
+                }
+            });
+
+            await Promise.all(updatePromises);
+
+            if (productUpdates.length) {
+                setProducts(prev => prev.map(product => {
+                    const update = productUpdates.find(item => item.id === product.id);
+                    return update ? { ...product, sizes: update.sizes, stock: update.stock, status: update.status } : product;
+                }));
+            }
+
+            showSuccessModal('O\'chirildi', `${sizeName} o'lchami ro'yxatdan o'chirildi.`);
+        } catch (error) {
+            console.error('❌ O\'lchamni o\'chirishda xatolik:', error);
+            showConfirmModal(
+                'Xatolik!',
+                'O\'lchamni o\'chirishda xatolik yuz berdi.',
+                () => {},
+                'error'
+            );
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const startEditSize = (sizeName) => {
+        setEditingSize(sizeName);
+        setEditingSizeValue(sizeName);
+    };
+
+    const cancelSizeEdit = () => {
+        setEditingSize(null);
+        setEditingSizeValue('');
+    };
+
+    const handleSaveSizeEdit = async () => {
+        const trimmed = editingSizeValue.trim();
+        if (!editingSize || !trimmed) {
+            return;
+        }
+        if (availableSizes.some(size => size.toLowerCase() === trimmed.toLowerCase() && size !== editingSize)) {
+            showConfirmModal(
+                'Diqqat!',
+                'Kiritilgan o\'lcham nomi ro\'yxatda mavjud.',
+                () => {},
+                'warning'
+            );
+            return;
+        }
+
+        const updatedSizes = availableSizes.map(size => size === editingSize ? trimmed : size);
+        setAvailableSizes(updatedSizes);
+        setNewProduct(prev => ({
+            ...prev,
+            sizes: prev.sizes.map(size => size.size === editingSize ? { ...size, size: trimmed } : size)
+        }));
+        await persistCatalogSettings({ sizes: updatedSizes });
+
+        try {
+            setIsLoading(true);
+            const productsSnapshot = await getDocs(collection(db, "products"));
+            const updatePromises = [];
+            const productUpdates = [];
+
+            productsSnapshot.forEach((docSnap) => {
+                const data = docSnap.data() || {};
+                const productSizes = Array.isArray(data.sizes) ? data.sizes : [];
+                if (productSizes.some(size => size.size === editingSize)) {
+                    const mappedSizes = productSizes.map(size => size.size === editingSize ? { ...size, size: trimmed } : size);
+                    const totalStock = mappedSizes.reduce((sum, size) => sum + (parseInt(size.stock) || 0), 0);
+                    updatePromises.push(setDoc(doc(db, "products", docSnap.id), {
+                        sizes: mappedSizes,
+                        stock: totalStock,
+                        status: totalStock > 0 ? 'mavjud' : 'mavjud emas',
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true }));
+                    productUpdates.push({
+                        id: docSnap.id,
+                        sizes: mappedSizes,
+                        stock: totalStock,
+                        status: totalStock > 0 ? 'mavjud' : 'mavjud emas'
+                    });
+                }
+            });
+
+            await Promise.all(updatePromises);
+
+            if (productUpdates.length) {
+                setProducts(prev => prev.map(product => {
+                    const update = productUpdates.find(item => item.id === product.id);
+                    return update ? { ...product, sizes: update.sizes, stock: update.stock, status: update.status } : product;
+                }));
+            }
+
+            showSuccessModal('Yangilandi', `${editingSize} o'lchami ${trimmed} ga o'zgartirildi.`);
+        } catch (error) {
+            console.error('❌ O\'lchamni yangilashda xatolik:', error);
+            showConfirmModal(
+                'Xatolik!',
+                'O\'lchamni yangilashda xatolik yuz berdi.',
+                () => {},
+                'error'
+            );
+        } finally {
+            setIsLoading(false);
+            setEditingSize(null);
+            setEditingSizeValue('');
+        }
+    };
+
     // Buyurtma statusini o&apos;zgartirish
     const updateOrderStatus = async (orderId, newStatus) => {
         try {
@@ -244,16 +567,108 @@ const AdminPanel = () => {
         }
     };
 
-    // Component yuklanganida ma'lumotlarni olish
-    useEffect(() => {
-        if (isLoggedIn) {
-            fetchProducts();
-            fetchUsers();
-            fetchOrders();
+    const initializeAdminData = async () => {
+        setDashboardLoading(true);
+        try {
+            const tasks = [
+                fetchProducts(),
+                fetchUsers(),
+                fetchOrders(),
+                loadCatalogSettings()
+            ];
             if (adminInfo.role === 'super_admin') {
-                fetchAdmins();
+                tasks.push(fetchAdmins());
             }
+            await Promise.all(tasks);
+        } catch (error) {
+            console.error('❌ Ma\'lumotlarni yuklashda xatolik:', error);
+        } finally {
+            setDashboardLoading(false);
         }
+    };
+
+    useEffect(() => {
+        if (!isLoggedIn) {
+            return;
+        }
+        initializeAdminData();
+    }, [isLoggedIn]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const storedSession = localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+            if (!storedSession) return;
+            const parsed = JSON.parse(storedSession);
+            if (!parsed || parsed.adminId !== adminInfo.id || !parsed.expiresAt) {
+                return;
+            }
+            const expiryDate = new Date(parsed.expiresAt);
+            if (expiryDate > new Date()) {
+                setIsLoggedIn(true);
+            } else {
+                localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+            }
+        } catch (error) {
+            console.error('⚠️ Admin sessiyasini o\'qishda xatolik:', error);
+            localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!isLoggedIn) {
+            return;
+        }
+
+        const usersRef = collection(db, "users");
+        const productsRef = collection(db, "products");
+        const ordersRef = collection(db, "orders");
+        const catalogDocRef = doc(db, CATALOG_SETTINGS_PATH.collection, CATALOG_SETTINGS_PATH.doc);
+
+        const unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
+            const usersData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+            setUsers(usersData);
+        });
+
+        const unsubscribeProducts = onSnapshot(productsRef, (snapshot) => {
+            const productsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+            setProducts(productsData);
+        });
+
+        const ordersQuery = query(ordersRef, orderBy('createdAt', 'desc'));
+        const unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
+            const ordersData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+            setOrders(ordersData);
+        });
+
+        const unsubscribeCatalog = onSnapshot(catalogDocRef, async (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data() || {};
+                if (Array.isArray(data.notes) && data.notes.length) {
+                    setAvailableNotes(data.notes);
+                }
+                if (Array.isArray(data.brands) && data.brands.length) {
+                    setAvailableBrands(data.brands);
+                }
+                if (Array.isArray(data.sizes) && data.sizes.length) {
+                    setAvailableSizes(data.sizes);
+                }
+            } else {
+                await setDoc(catalogDocRef, {
+                    notes: DEFAULT_NOTES,
+                    brands: DEFAULT_BRANDS,
+                    sizes: DEFAULT_SIZES,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+        });
+
+        return () => {
+            unsubscribeUsers();
+            unsubscribeProducts();
+            unsubscribeOrders();
+            unsubscribeCatalog();
+        };
     }, [isLoggedIn]);
 
     const handleLogin = (e) => {
@@ -269,7 +684,23 @@ const AdminPanel = () => {
             phone === adminInfo.phone && 
             password === adminInfo.password) {
             setIsLoggedIn(true);
+            if (typeof window !== 'undefined') {
+                const expiresAt = new Date();
+                expiresAt.setDate(expiresAt.getDate() + ADMIN_SESSION_DURATION_DAYS);
+                const sessionPayload = {
+                    token: `admin_${adminInfo.id}_${Date.now()}`,
+                    adminId: adminInfo.id,
+                    expiresAt: expiresAt.toISOString()
+                };
+                localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(sessionPayload));
+            }
             showSuccessModal('Muvaffaqiyat!', 'Admin panelga muvaffaqiyatli kirdingiz!');
+            setLoginData({
+                firstName: '',
+                lastName: '',
+                phone: '',
+                password: ''
+            });
         } else {
             showConfirmModal(
                 'Xatolik!', 
@@ -280,47 +711,80 @@ const AdminPanel = () => {
         }
     };
 
+    const logoutAdmin = () => {
+        setIsLoggedIn(false);
+        setActiveTab('users');
+        setDashboardLoading(false);
+        setIsLoading(false);
+        setCatalogLoading(false);
+        setCatalogSaving(false);
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+        }
+    };
+
+    const shouldShowGlobalLoader = dashboardLoading || isLoading || catalogSaving || catalogLoading;
+
     const handleAdminUpdate = (e) => {
         e.preventDefault();
         setShowAdminModal(false);
         showSuccessModal('Muvaffaqiyat!', 'Admin ma\'lumotlari muvaffaqiyatli yangilandi!');
     };
 
-    const addNewSize = () => {
-        setNewProduct({
-            ...newProduct,
-            sizes: [...newProduct.sizes, { size: '', price: '', stock: '', image: null }]
-        });
+    const toggleProductSize = (sizeName) => {
+        const exists = newProduct.sizes.some(size => size.size === sizeName);
+        if (exists) {
+            const filtered = newProduct.sizes.filter(size => size.size !== sizeName);
+            setNewProduct({ ...newProduct, sizes: filtered });
+        } else {
+            setNewProduct({
+                ...newProduct,
+                sizes: [
+                    ...newProduct.sizes,
+                    { size: sizeName, price: '', stock: '' }
+                ]
+            });
+        }
     };
 
-    const updateSize = (index, field, value) => {
-        const updatedSizes = newProduct.sizes.map((size, i) => 
-            i === index ? { ...size, [field]: value } : size
+    const updateSelectedSize = (sizeName, field, value) => {
+        const updatedSizes = newProduct.sizes.map(size =>
+            size.size === sizeName ? { ...size, [field]: value } : size
         );
         setNewProduct({ ...newProduct, sizes: updatedSizes });
     };
 
-    const removeSize = (index) => {
-        if (newProduct.sizes.length > 1) {
-            const updatedSizes = newProduct.sizes.filter((_, i) => i !== index);
-            setNewProduct({ ...newProduct, sizes: updatedSizes });
-        }
-    };
-
     // Nota qo'shish/o'chirish
-    const addNote = () => {
-        if (newNote.trim() && !availableNotes.includes(newNote.trim())) {
-            setAvailableNotes([...availableNotes, newNote.trim()]);
-            setNewNote('');
+    const addNote = async () => {
+        const trimmed = newNote.trim();
+        if (!trimmed) {
+            return;
         }
+        if (availableNotes.some(note => note.toLowerCase() === trimmed.toLowerCase())) {
+            showConfirmModal(
+                'Diqqat!',
+                'Bu nota ro\'yxatda allaqachon mavjud.',
+                () => {},
+                'warning'
+            );
+            return;
+        }
+        const updatedNotes = [...availableNotes, trimmed];
+        setAvailableNotes(updatedNotes);
+        setNewNote('');
+        await persistCatalogSettings({ notes: updatedNotes });
+        showSuccessModal('Muvaffaqiyat!', `${trimmed} notasi qo\'shildi.`);
     };
 
-    const removeNote = (note) => {
-        setAvailableNotes(availableNotes.filter(n => n !== note));
+    const removeNote = async (note) => {
+        const updatedNotes = availableNotes.filter(n => n !== note);
+        setAvailableNotes(updatedNotes);
         setNewProduct({
             ...newProduct,
             fragranceNotes: newProduct.fragranceNotes.filter(n => n !== note)
         });
+        await persistCatalogSettings({ notes: updatedNotes });
+        showSuccessModal('O\'chirildi', `${note} notasi ro\'yxatdan o\'chirildi.`);
     };
 
     const toggleNote = (note) => {
@@ -344,39 +808,46 @@ const AdminPanel = () => {
         setIsLoading(true);
         
         try {
-            // Sizes arrayidagi File obyektlarini tekshirish va tozalash
-            const cleanedSizes = newProduct.sizes.map(size => ({
-                size: size.size,
-                price: size.price,
-                stock: size.stock, // Stockni ham tozalash
-                // File obyektini o'chirish, faqat matn ma'lumotlarini saqlash
-                imageName: size.image ? size.image.name : null
-            }));
+            const cleanedSizes = newProduct.sizes
+                .filter(size => size.size)
+                .map(size => ({
+                    size: size.size,
+                    price: size.price || '0',
+                    stock: size.stock || '0'
+                }));
 
-            // Umumiy stockni o'lchamlar bo'yicha hisoblash
+            if (!cleanedSizes.length) {
+                showConfirmModal(
+                    'Diqqat!',
+                    'Kamida bitta o\'lcham tanlang.',
+                    () => {},
+                    'warning'
+                );
+                setIsLoading(false);
+                return;
+            }
+
             const totalStock = cleanedSizes.reduce((sum, size) => {
                 return sum + (parseInt(size.stock) || 0);
             }, 0);
 
-        const product = {
-                            name: newProduct.name,
+            const product = {
+                name: newProduct.name,
                 brand: newProduct.brand,
                 price: newProduct.price,
-                stock: totalStock, // O'lchamlar sonidan hisoblangan
+                stock: totalStock,
                 status: totalStock > 0 ? 'mavjud' : 'mavjud emas',
                 image: `https://images.unsplash.com/photo-1541643600914-78b084683601?w=300&h=400&fit=crop&random=${Date.now()}`,
                 description: newProduct.description,
                 category: newProduct.category,
                 fragrance_notes: newProduct.fragranceNotes,
-                sizes: cleanedSizes, // Tozalangan sizes
+                sizes: cleanedSizes,
                 createdAt: new Date().toISOString()
             };
             
-            // Firestore'ga saqlash
             const docRef = await addDoc(collection(db, "products"), product);
             console.log('✅ Mahsulot Firestore ga saqlandi, ID:', docRef.id);
             
-            // Admin amalini log qilish
             await logAdminAction(
                 'CREATE_PRODUCT',
                 `Yangi mahsulot qo'shildi: ${product.name} (${product.brand})`,
@@ -384,10 +855,8 @@ const AdminPanel = () => {
                 docRef.id
             );
             
-            // State ni yangilash
             setProducts([...products, { id: docRef.id, ...product }]);
             
-                        // Formani tozalash
             setNewProduct({
                 name: '',
                 brand: '',
@@ -395,10 +864,10 @@ const AdminPanel = () => {
                 description: '',
                 category: 'erkak',
                 fragranceNotes: [],
-                sizes: [{ size: '', price: '', stock: '', image: null }]
+                sizes: []
             });
-        setShowProductModal(false);
-        showSuccessModal('Muvaffaqiyat!', 'Mahsulot muvaffaqiyatli qo\'shildi!');
+            setShowProductModal(false);
+            showSuccessModal('Muvaffaqiyat!', 'Mahsulot muvaffaqiyatli qo\'shildi!');
         } catch (error) {
             console.error('❌ Mahsulotni saqlashda xatolik:', error);
             showConfirmModal(
@@ -465,8 +934,19 @@ const AdminPanel = () => {
             description: product.description || '',
             category: product.category || 'erkak',
             fragranceNotes: product.fragrance_notes || [],
-            sizes: product.sizes || [{ size: '', price: '', stock: '', image: null }]
+            sizes: product.sizes || []
         });
+
+        const productSizeNames = (product.sizes || [])
+            .map(size => size.size)
+            .filter(size => size && typeof size === 'string');
+        if (productSizeNames.length) {
+            setAvailableSizes(prev => {
+                const merged = new Set(prev);
+                productSizeNames.forEach(size => merged.add(size));
+                return Array.from(merged);
+            });
+        }
         
         setShowProductModal(true);
     };
@@ -477,15 +957,25 @@ const AdminPanel = () => {
         setIsLoading(true);
         
         try {
-            // Sizes arrayidagi File obyektlarini tekshirish va tozalash
-            const cleanedSizes = newProduct.sizes.map(size => ({
-                size: size.size,
-                price: size.price,
-                stock: size.stock,
-                imageName: size.image ? size.image.name : null
-            }));
+            const cleanedSizes = newProduct.sizes
+                .filter(size => size.size)
+                .map(size => ({
+                    size: size.size,
+                    price: size.price || '0',
+                    stock: size.stock || '0'
+                }));
 
-            // Umumiy stockni o'lchamlar bo'yicha hisoblash
+            if (!cleanedSizes.length) {
+                showConfirmModal(
+                    'Diqqat!',
+                    'Kamida bitta o\'lcham tanlang.',
+                    () => {},
+                    'warning'
+                );
+                setIsLoading(false);
+                return;
+            }
+
             const totalStock = cleanedSizes.reduce((sum, size) => {
                 return sum + (parseInt(size.stock) || 0);
             }, 0);
@@ -549,7 +1039,7 @@ const AdminPanel = () => {
             description: '',
             category: 'erkak',
             fragranceNotes: [],
-            sizes: [{ size: '', price: '', stock: '', image: null }]
+            sizes: []
         });
     };
 
@@ -721,11 +1211,17 @@ const AdminPanel = () => {
     }
     
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 relative">
+            {shouldShowGlobalLoader && (
+                <div className="fixed inset-0 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center z-40">
+                    <div className="w-14 h-14 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-700 font-semibold text-center px-6">Ma&apos;lumotlar yuklanmoqda...</p>
+                </div>
+            )}
             {/* Header */}
             <header className="bg-white shadow-lg border-b border-gray-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-16">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between min-h-[4rem] py-4 sm:py-0">
                         <div className="flex items-center space-x-4">
                             <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
                                 <span className="text-black font-bold text-xl">U</span>
@@ -750,7 +1246,7 @@ const AdminPanel = () => {
                                 </svg>
                             </button>
                             <button
-                                onClick={() => setIsLoggedIn(false)}
+                                onClick={logoutAdmin}
                                 className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-medium transition-colors flex items-center"
                             >
                                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -766,7 +1262,7 @@ const AdminPanel = () => {
             {/* Navigation Tabs */}
             <nav className="bg-white shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex space-x-8">
+                    <div className="flex flex-wrap gap-4 sm:gap-6 lg:gap-8 overflow-x-auto py-2">
                         {[
                             { key: 'users', name: 'Foydalanuvchilar', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z' },
                             { key: 'orders', name: 'Buyurtmalar', icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z' },
@@ -1018,10 +1514,20 @@ const AdminPanel = () => {
                         </h2>
                         <p className="text-gray-500 mt-1">Barcha mahsulotlar ro&apos;yxati</p>
                     </div>
-                    <div className="flex items-center space-x-4">
+                    <div className="flex flex-wrap items-center gap-3">
                         <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-2 rounded-xl">
                             <span className="text-purple-600 font-semibold">Jami: {products.length}</span>
                         </div>
+                        <button
+                            onClick={() => setShowFilterSettingsModal(true)}
+                            className="flex items-center px-5 py-2.5 rounded-xl border border-yellow-400 text-yellow-600 hover:bg-yellow-50 transition-colors font-semibold shadow-sm bg-white"
+                        >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.25 3.75a.75.75 0 011.5 0v1.26a5.25 5.25 0 011.84.76l1.08-.62a.75.75 0 011.03.28l1.5 2.598a.75.75 0 01-.28 1.03l-1.09.63a5.27 5.27 0 010 1.52l1.09.63a.75.75 0 01.28 1.03l-1.5 2.598a.75.75 0 01-1.03.28l-1.08-.62a5.25 5.25 0 01-1.84.76v1.26a.75.75 0 01-1.5 0v-1.26a5.25 5.25 0 01-1.84-.76l-1.08.62a.75.75 0 01-1.03-.28l-1.5-2.598a.75.75 0 01.28-1.03l1.09-.63a5.27 5.27 0 010-1.52l-1.09-.63a.75.75 0 01-.28-1.03l1.5-2.598a.75.75 0 011.03-.28l1.08.62a5.25 5.25 0 011.84-.76V3.75z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" />
+                            </svg>
+                            Mahsulot sozlamalari
+                        </button>
                         <button
                             onClick={() => setShowProductModal(true)}
                                         disabled={isLoading}
@@ -1275,6 +1781,223 @@ const AdminPanel = () => {
             )}
             </main>
             
+            {/* Filter Settings Modal */}
+            {showFilterSettingsModal && (
+                <div 
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowFilterSettingsModal(false);
+                            cancelBrandEdit();
+                        }
+                    }}
+                >
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl">
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                        <svg className="w-7 h-7 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.25 3.75a.75.75 0 011.5 0v1.26a5.25 5.25 0 011.84.76l1.08-.62a.75.75 0 011.03.28l1.5 2.598a.75.75 0 01-.28 1.03l-1.09.63a5.27 5.27 0 010 1.52l1.09.63a.75.75 0 01.28 1.03l-1.5 2.598a.75.75 0 01-1.03.28l-1.08-.62a5.25 5.25 0 01-1.84.76v1.26a.75.75 0 01-1.5 0v-1.26a5.25 5.25 0 01-1.84-.76l-1.08.62a.75.75 0 01-1.03-.28l-1.5-2.598a.75.75 0 01.28-1.03l1.09-.63a5.27 5.27 0 010-1.52l-1.09-.63a.75.75 0 01-.28-1.03l1.5-2.598a.75.75 0 011.03-.28l1.08.62a5.25 5.25 0 011.84-.76V3.75z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" />
+                                        </svg>
+                                        Filtr sozlamalari
+                                    </h3>
+                                    <p className="text-gray-500 mt-1">
+                                        Client tarafdagi mahsulot filtrlari ushbu ro&apos;yxatlardan foydalanadi.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    {catalogSaving && (
+                                        <div className="flex items-center text-yellow-600 text-sm font-semibold">
+                                            <span className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin mr-2"></span>
+                                            Saqlanmoqda...
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            setShowFilterSettingsModal(false);
+                                            cancelBrandEdit();
+                                        }}
+                                        className="text-gray-400 hover:text-gray-600 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {catalogLoading ? (
+                                <div className="flex flex-col items-center justify-center py-20 text-center text-gray-600">
+                                    <span className="w-10 h-10 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-4"></span>
+                                    Sozlamalar yuklanmoqda...
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div>
+                                                <h4 className="text-lg font-semibold text-gray-900">Brendlar ro&apos;yxati</h4>
+                                                <p className="text-sm text-gray-500">
+                                                    Filtrda ko&apos;rinadigan brendlarni shu yerda boshqaring.
+                                                </p>
+                                            </div>
+                                            <span className="text-xs font-medium text-gray-500 bg-white border border-gray-200 px-3 py-1 rounded-full">
+                                                {availableBrands.length} ta
+                                            </span>
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                                            <input
+                                                type="text"
+                                                value={newBrand}
+                                                onChange={(e) => setNewBrand(e.target.value)}
+                                                className="flex-1 border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
+                                                placeholder="Yangi brend nomi"
+                                            />
+                                            <button
+                                                onClick={handleAddBrand}
+                                                disabled={catalogSaving || !newBrand.trim()}
+                                                className="whitespace-nowrap bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-5 py-3 rounded-xl transition-colors disabled:opacity-50"
+                                            >
+                                                Qo&apos;shish
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                                            {availableBrands.length === 0 && (
+                                                <div className="text-sm text-gray-500 bg-white border border-dashed border-gray-300 rounded-xl p-4 text-center">
+                                                    Hozircha brend qo&apos;shilmagan.
+                                                </div>
+                                            )}
+                                            {availableBrands.map((brand) => (
+                                                <div
+                                                    key={brand}
+                                                    className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                                >
+                                                    {editingBrand === brand ? (
+                                                        <>
+                                                            <input
+                                                                type="text"
+                                                                value={editingBrandValue}
+                                                                onChange={(e) => setEditingBrandValue(e.target.value)}
+                                                                className="flex-1 border border-yellow-300 rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500"
+                                                                placeholder="Brend nomini kiriting"
+                                                            />
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={handleSaveBrandEdit}
+                                                                    disabled={catalogSaving || !editingBrandValue.trim()}
+                                                                    className="bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                                                                >
+                                                                    Saqlash
+                                                                </button>
+                                                                <button
+                                                                    onClick={cancelBrandEdit}
+                                                                    className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                                                                >
+                                                                    Bekor qilish
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span className="font-semibold text-gray-800">{brand}</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => startEditBrand(brand)}
+                                                                    className="bg-blue-100 hover:bg-blue-200 text-blue-600 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                                                                >
+                                                                    Tahrirlash
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRemoveBrand(brand)}
+                                                                    disabled={catalogSaving}
+                                                                    className="bg-red-100 hover:bg-red-200 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                                                >
+                                                                    O&apos;chirish
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div>
+                                                <h4 className="text-lg font-semibold text-gray-900">Atir notalari</h4>
+                                                <p className="text-sm text-gray-500">
+                                                    Mahsulotlar uchun mavjud bo&apos;lgan nota variantlari.
+                                                </p>
+                                            </div>
+                                            <span className="text-xs font-medium text-gray-500 bg-white border border-gray-200 px-3 py-1 rounded-full">
+                                                {availableNotes.length} ta
+                                            </span>
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                                            <input
+                                                type="text"
+                                                value={newNote}
+                                                onChange={(e) => setNewNote(e.target.value)}
+                                                className="flex-1 border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
+                                                placeholder="Masalan: Atirgul, Oq mushk"
+                                            />
+                                            <button
+                                                onClick={addNote}
+                                                disabled={catalogSaving || !newNote.trim()}
+                                                className="whitespace-nowrap bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-5 py-3 rounded-xl transition-colors disabled:opacity-50"
+                                            >
+                                                Qo&apos;shish
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                                            {availableNotes.length === 0 && (
+                                                <div className="text-sm text-gray-500 bg-white border border-dashed border-gray-300 rounded-xl p-4 text-center">
+                                                    Hozircha nota qo&apos;shilmagan.
+                                                </div>
+                                            )}
+                                            {availableNotes.map((note) => (
+                                                <div
+                                                    key={note}
+                                                    className="bg-white border border-gray-200 rounded-xl px-4 py-2 flex items-center justify-between"
+                                                >
+                                                    <span className="font-medium text-gray-800">{note}</span>
+                                                    <button
+                                                        onClick={() => removeNote(note)}
+                                                        disabled={catalogSaving}
+                                                        className="bg-red-100 hover:bg-red-200 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                                    >
+                                                        O&apos;chirish
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="px-6 pb-6 text-right">
+                            <button
+                                onClick={() => {
+                                    setShowFilterSettingsModal(false);
+                                    cancelBrandEdit();
+                                }}
+                                className="inline-flex items-center bg-gray-900 hover:bg-black text-white font-semibold px-6 py-3 rounded-xl transition-colors"
+                            >
+                                Yopish
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Modals */}
             <ConfirmModal
                 isOpen={confirmModal.isOpen}
@@ -1342,14 +2065,29 @@ const AdminPanel = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-gray-700 font-semibold mb-2">Brand *</label>
-                                <input
-                                    type="text"
-                                    value={newProduct.brand}
-                                    onChange={(e) => setNewProduct({...newProduct, brand: e.target.value})}
-                                    className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
-                                    placeholder="Masalan: Chanel"
-                                    required
-                                />
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <input
+                                        type="text"
+                                        list="brand-options"
+                                        value={newProduct.brand}
+                                        onChange={(e) => setNewProduct({...newProduct, brand: e.target.value})}
+                                        className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
+                                        placeholder="Masalan: Chanel"
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFilterSettingsModal(true)}
+                                        className="sm:w-auto w-full inline-flex items-center justify-center px-4 py-3 rounded-xl border border-yellow-400 text-yellow-600 font-semibold hover:bg-yellow-50 transition-colors"
+                                    >
+                                        Sozlash
+                                    </button>
+                                </div>
+                                <datalist id="brand-options">
+                                    {availableBrands.map((brand) => (
+                                        <option key={brand} value={brand} />
+                                    ))}
+                                </datalist>
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-semibold mb-2">Asosiy narx *</label>
@@ -1458,71 +2196,153 @@ const AdminPanel = () => {
                         </div>
                         
                         <div className="border-t border-gray-200 pt-6">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17v4a2 2 0 002 2h4M13 5v4a2 2 0 002 2h4" />
-                                </svg>
-                                O&apos;lchamlar va narxlar
-                            </h4>
-                            <div className="space-y-4">
-                                {newProduct.sizes.map((size, index) => (
-                                    <div 
-                                        key={index} 
-                                        className="bg-gray-50 p-4 rounded-xl border-2 border-gray-100 hover:border-gray-200 transition-colors"
-                                    >
-                                        <div className="flex items-center justify-between mb-3">
-                                            <span className="text-sm font-medium text-gray-700">O&apos;lcham {index + 1}</span>
-                                            {newProduct.sizes.length > 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeSize(index)}
-                                                    className="text-red-500 hover:text-red-700 text-sm font-medium"
-                                                >
-                                                    O&apos;chirish
-                                                </button>
-                                            )}
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                            <input
-                                                type="text"
-                                                value={size.size}
-                                                onChange={(e) => updateSize(index, 'size', e.target.value)}
-                                                className="border-2 border-gray-200 rounded-lg p-2 focus:border-blue-400 focus:ring-0 transition-colors"
-                                                placeholder="Hajm (ml)"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={size.price}
-                                                onChange={(e) => updateSize(index, 'price', e.target.value)}
-                                                className="border-2 border-gray-200 rounded-lg p-2 focus:border-blue-400 focus:ring-0 transition-colors"
-                                                placeholder="Narx"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={size.stock}
-                                                onChange={(e) => updateSize(index, 'stock', e.target.value)}
-                                                className="border-2 border-gray-200 rounded-lg p-2 focus:border-blue-400 focus:ring-0 transition-colors"
-                                                placeholder="Soni"
-                                            />
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={(e) => updateSize(index, 'image', e.target.files[0])}
-                                                className="border-2 border-gray-200 rounded-lg p-2 text-sm cursor-pointer"
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                                    <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17v4a2 2 0 002 2h4M13 5v4a2 2 0 002 2h4" />
+                                    </svg>
+                                    O&apos;lchamlar va narxlar
+                                </h4>
                                 <button
                                     type="button"
-                                    onClick={addNewSize}
-                                    className="w-full border-2 border-dashed border-blue-300 text-blue-600 hover:border-blue-400 hover:text-blue-700 py-3 rounded-xl transition-colors flex items-center justify-center font-medium"
+                                    onClick={() => setShowSizeSettings(!showSizeSettings)}
+                                    className="text-sm font-medium text-blue-600 hover:text-blue-700"
                                 >
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                    </svg>
-                                    Yana o&apos;lcham qo&apos;shish
+                                    {showSizeSettings ? 'Yashirish' : 'Sozlamalar'}
                                 </button>
+                            </div>
+
+                            {showSizeSettings && (
+                                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-5 space-y-4">
+                                    <div>
+                                        <h5 className="font-medium text-gray-900 mb-2">O&apos;lcham sozlamalari</h5>
+                                        <div className="flex flex-col sm:flex-row gap-2">
+                                            <input
+                                                type="text"
+                                                value={newSizeValue}
+                                                onChange={(e) => setNewSizeValue(e.target.value)}
+                                                className="flex-1 border-2 border-gray-200 rounded-lg p-2 focus:border-indigo-400 focus:ring-0 transition-colors"
+                                                placeholder="Yangi o'lcham (masalan: 5ml)"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleAddSize}
+                                                className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+                                            >
+                                                Qo&apos;shish
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                        {availableSizes.map((size) => (
+                                            <div key={size} className="bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                                                {editingSize === size ? (
+                                                    <>
+                                                        <input
+                                                            type="text"
+                                                            value={editingSizeValue}
+                                                            onChange={(e) => setEditingSizeValue(e.target.value)}
+                                                            className="flex-1 border-2 border-indigo-200 rounded-lg p-2 focus:border-indigo-400 focus:ring-0 transition-colors mr-3"
+                                                        />
+                                                        <div className="flex items-center space-x-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleSaveSizeEdit}
+                                                                className="px-3 py-1 bg-indigo-500 text-white rounded-lg text-sm"
+                                                            >
+                                                                Saqlash
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={cancelSizeEdit}
+                                                                className="px-3 py-1 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-100"
+                                                            >
+                                                                Bekor qilish
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-sm font-medium text-gray-800">{size}</span>
+                                                        <div className="flex items-center space-x-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => startEditSize(size)}
+                                                                className="text-indigo-500 hover:text-indigo-600 text-sm"
+                                                            >
+                                                                Tahrirlash
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveSize(size)}
+                                                                className="text-red-500 hover:text-red-600 text-sm"
+                                                            >
+                                                                O&apos;chirish
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        ))}
+                                        {availableSizes.length === 0 && (
+                                            <div className="text-sm text-gray-600">
+                                                O&apos;lchamlar ro&apos;yxati bo&apos;sh. Yangi o&apos;lcham qo&apos;shing.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                {availableSizes.map((sizeName) => {
+                                    const selected = newProduct.sizes.find(size => size.size === sizeName);
+                                    return (
+                                        <div
+                                            key={sizeName}
+                                            className={`rounded-xl border-2 p-4 transition-colors ${selected ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 bg-white'}`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <label className="flex items-center space-x-3 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!selected}
+                                                        onChange={() => toggleProductSize(sizeName)}
+                                                        className="h-5 w-5 text-yellow-500 focus:ring-yellow-400"
+                                                    />
+                                                    <span className="text-sm font-semibold text-gray-800">{sizeName}</span>
+                                                </label>
+                                                {selected && (
+                                                    <span className="text-xs text-gray-500">
+                                                        {selected.stock ? `${selected.stock} dona` : 'Soni kiritilmagan'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {selected && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                                    <input
+                                                        type="text"
+                                                        value={selected.price}
+                                                        onChange={(e) => updateSelectedSize(sizeName, 'price', e.target.value)}
+                                                        className="border-2 border-gray-200 rounded-lg p-2 focus:border-yellow-400 focus:ring-0 transition-colors"
+                                                        placeholder="Narx"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={selected.stock}
+                                                        onChange={(e) => updateSelectedSize(sizeName, 'stock', e.target.value)}
+                                                        className="border-2 border-gray-200 rounded-lg p-2 focus:border-yellow-400 focus:ring-0 transition-colors"
+                                                        placeholder="Soni"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                                {availableSizes.length === 0 && (
+                                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-xl text-sm">
+                                        Avval o&apos;lcham sozlamalariga kamida bitta o&apos;lcham qo&apos;shing.
+                                    </div>
+                                )}
                             </div>
                         </div>
                         
@@ -1539,7 +2359,7 @@ const AdminPanel = () => {
                                     disabled={isLoading}
                                     className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg disabled:opacity-50"
                             >
-                                    {isLoading ? 'Saqlanmoqda...&apos;' : isEditMode ? 'Mahsulotni saqlash&apos;' : 'Mahsulotni saqlash&apos;}
+                                    {isLoading ? 'Saqlanmoqda...' : isEditMode ? 'Mahsulotni saqlash' : 'Mahsulotni saqlash'}
                             </button>
                         </div>
                     </form>

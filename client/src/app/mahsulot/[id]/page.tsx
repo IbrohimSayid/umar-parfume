@@ -12,6 +12,7 @@ import SuccessModal from '../../../components/SuccessModal';
 import AuthModal from '../../../components/AuthModal';
 import SignupRequiredModal from '../../../components/SignupRequiredModal';
 import Image from 'next/image'; // Import Image component
+import { toast } from 'react-toastify';
 
 interface ProductSize {
   size: string;
@@ -130,6 +131,32 @@ export default function MahsulotPage() {
     return new Intl.NumberFormat('uz-UZ').format(numPrice) + ' so\'m';
   };
 
+  const parsePriceValue = (price: string | number) => {
+    if (typeof price === 'number') {
+      return price;
+    }
+    const digits = price.replace(/[^\d]/g, '');
+    return digits ? parseInt(digits) : 0;
+  };
+
+  const getStoredCart = (): any[] => {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem('cartItems');
+    if (!stored) return [];
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  };
+
+  const saveCart = (items: any[]) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('cartItems', JSON.stringify(items));
+    const totalCount = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: totalCount } }));
+  };
+
   // O'lcham uchun rasm olish funksiyasi
   const getSizeImage = (size: ProductSize) => {
     if (!size) return product?.image;
@@ -186,16 +213,6 @@ export default function MahsulotPage() {
   };
 
   const handleAddToCart = () => {
-    if (!isAuthenticated()) {
-      showConfirmModal(
-        'Tizimga kirish kerak',
-        'Savatga qo\'shish uchun avval tizimga kirish kerak.',
-        () => {},
-        'info'
-      );
-      return;
-    }
-
     if (!selectedSize) {
       showConfirmModal(
         'O\'lcham tanlang',
@@ -205,12 +222,28 @@ export default function MahsulotPage() {
       );
       return;
     }
-    
-    // Savatga qo'shish funksiyasi - keyinroq qo'shiladi
-    showSuccessModal(
-      'Savatga qo\'shildi!',
-      `${product?.name} (${selectedSize.size}) savatga muvaffaqiyatli qo'shildi!`
-    );
+
+    const priceValue = parsePriceValue(selectedSize.price || product?.price || 0);
+    const cartItems = getStoredCart();
+    const itemId = `${product?.id}-${selectedSize.size}`;
+    const existingItemIndex = cartItems.findIndex((item) => item.id === itemId);
+
+    if (existingItemIndex >= 0) {
+      cartItems[existingItemIndex].quantity += quantity;
+    } else {
+      cartItems.push({
+        id: itemId,
+        productId: product?.id,
+        productName: product?.name,
+        productImage: product?.image,
+        size: selectedSize.size,
+        price: priceValue,
+        quantity
+      });
+    }
+
+    saveCart(cartItems);
+    toast.success(`${product?.name} (${selectedSize.size}) savatga qo'shildi`);
   };
 
   const handleBuyNow = () => {

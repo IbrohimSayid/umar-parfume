@@ -90,28 +90,28 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-black via-gray-900 to-black text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              <Image
-                src="/logo.png" // Rasmingizning yo'li
-                alt="Umar Perfume Logo" // Rasm uchun tavsif
-                width={150} // Kenglik
-                height={150} // Balandlik
-                className="mx-auto mb-4"
-              />
-            </h1>
-            <p className="text-xl md:text-2xl mb-8 text-gray-300">
-              {t.welcomeSubtitle}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/mahsulotlar">
-                <button className="bg-yellow-400 text-black px-8 py-3 rounded-full font-semibold hover:bg-yellow-500 transition-colors duration-200 shadow-lg hover:shadow-yellow-400/30 cursor-pointer">
-                  {t.products}
-                </button>
-              </Link>
-              {/* "Biz haqimizda" tugmasi olib tashlandi */}
-            </div>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-8">
+          <Image
+            src="/images/logo.jpg"
+            alt="Umar Perfume Logo"
+            width={140}
+            height={140}
+            priority
+            unoptimized
+            className="mx-auto rounded-2xl shadow-2xl ring-2 ring-yellow-400/40"
+          />
+          <h1 className="text-3xl md:text-5xl font-bold leading-tight">
+            Umar Perfume — {t.products}
+          </h1>
+          <p className="text-lg md:text-xl text-gray-300">
+            {t.welcomeSubtitle}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/mahsulotlar">
+              <button className="bg-yellow-400 text-black px-8 py-3 rounded-full font-semibold hover:bg-yellow-500 transition-colors duration-200 shadow-lg hover:shadow-yellow-400/30 cursor-pointer">
+                {t.products}
+              </button>
+            </Link>
           </div>
         </div>
       </section>
@@ -286,7 +286,7 @@ export default function Home() {
             <div className="col-span-1 md:col-span-2">
               <div className="flex items-center space-x-3 mb-4">
                 <Image
-                  src="/logo.png" // Rasmingizning yo'li
+                  src="/images/logo.jpg" // Rasmingizning yo'li
                   alt="Umar Perfume Logo" // Rasm uchun tavsif
                   width={40} // Kenglik
                   height={40} // Balandlik

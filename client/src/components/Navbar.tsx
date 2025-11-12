@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from "next/image"; 
 import { useAuth } from '../contexts/AuthContext';
@@ -13,6 +13,60 @@ export default function Navbar() {
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const { user, userProfile, isAuthenticated, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
+  const [cartCount, setCartCount] = useState(0);
+  const languageFlags: Record<string, string> = {
+    uz: '🇺🇿',
+    ru: '🇷🇺',
+  };
+  const displayCartCount = cartCount > 99 ? '99+' : cartCount;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const readCartCount = () => {
+      try {
+        const stored = window.localStorage.getItem('cartItems');
+        if (!stored) return 0;
+        const parsed = JSON.parse(stored);
+        if (!Array.isArray(parsed)) return 0;
+        return parsed.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      } catch {
+        return 0;
+      }
+    };
+
+    const refreshCount = (count?: number) => {
+      if (typeof count === 'number') {
+        setCartCount(count);
+      } else {
+        setCartCount(readCartCount());
+      }
+    };
+
+    const handleCartUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<{ count?: number }>;
+      if (customEvent.detail && typeof customEvent.detail.count === 'number') {
+        refreshCount(customEvent.detail.count);
+      } else {
+        refreshCount();
+      }
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'cartItems') {
+        refreshCount();
+      }
+    };
+
+    refreshCount();
+    window.addEventListener('cartUpdated', handleCartUpdated as EventListener);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('cartUpdated', handleCartUpdated as EventListener);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
 
   const menuItems = [
     { name: t.home, href: '/' },
@@ -37,7 +91,7 @@ export default function Navbar() {
               {/* Yangi Logo */}
               <div className="relative">
                 <Image
-                  src="/logo.png" // Rasmingizning yo'li
+                  src="/images/logo.jpg" // Rasmingizning yo'li
                   alt="Umar Perfume Logo" // Rasm uchun tavsif
                   width={40} // Rasmingizning kengligi (pikselda)
                   height={40} // Rasmingizning balandligi (pikselda)
@@ -87,8 +141,8 @@ export default function Navbar() {
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 3H3m4 10v6a1 1 0 001 1h10a1 1 0 001-1v-6M9 19a1 1 0 100 2 1 1 0 000-2zm8 0a1 1 0 100 2 1 1 0 000-2z"
                 />
               </svg>
-              <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                0
+              <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs rounded-full h-5 min-w-[1.25rem] px-1 flex items-center justify-center font-bold">
+                {displayCartCount}
               </span>
             </Link>
 
@@ -98,8 +152,10 @@ export default function Navbar() {
                 onClick={() => setIsLanguageMenuOpen(!isLanguageMenuOpen)}
                 className="flex items-center space-x-2 text-white hover:text-yellow-400 px-3 py-2 rounded-lg transition-colors duration-200 cursor-pointer border border-transparent hover:border-yellow-400"
               >
-                <span className="text-lg">{language === 'uz' ? '🇺🇿' : '🇷🇺'}</span>
-                <span className="hidden md:block text-sm font-medium">{language === 'uz' ? 'UZ' : 'RU'}</span>
+                <span className="text-xl">{languageFlags[language] || '🌐'}</span>
+                <span className="hidden md:block text-sm font-medium">
+                  {language === 'uz' ? "O'zbek" : 'Русский'}
+                </span>
                 <svg className={`w-4 h-4 transition-transform duration-200 ${isLanguageMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
