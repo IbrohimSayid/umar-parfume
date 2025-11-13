@@ -2,10 +2,11 @@
   "name": "umar-perfume-admin",
   "version": "1.0.0",
   "description": "Admin panel for Umar Perfume",
+  "homepage": ".",
   "main": "src/index.js",
   "scripts": {
     "start": "set PORT=3001 && react-scripts start",
-    "build": "react-scripts build",
+    "build": "node node_modules/react-scripts/scripts/build.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
