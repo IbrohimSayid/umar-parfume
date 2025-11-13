@@ -85,8 +85,9 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
         } else {
           setError(result.error || 'Kirishda xatolik yuz berdi');
         }
-      } catch (error: any) {
-        setError(error.message || 'Kirishda xatolik yuz berdi');
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Kirishda xatolik yuz berdi';
+        setError(message);
       } finally {
         setIsLoading(false);
       }
@@ -112,8 +113,9 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
       } else {
         setError(result.error || 'SMS yuborishda xatolik yuz berdi');
       }
-    } catch (error: any) {
-      setError(error.message || 'Xatolik yuz berdi');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Xatolik yuz berdi';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -166,7 +168,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
     try {
       const result = await verifyCode(code);
       
-      if (result.success) {
+      if (result.success && result.user) {
         // Ro'yxatdan o'tish rejimida foydalanuvchi ma'lumotlarini saqlash
         const profile = {
           uid: result.user.uid,
@@ -188,8 +190,9 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
       } else {
         setError(result.error || 'Tasdiqlash kodini tekshirishda xatolik');
       }
-    } catch (error: any) {
-      setError(error.message || 'Xatolik yuz berdi');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Xatolik yuz berdi';
+      setError(message);
     } finally {
       setIsLoading(false);
     }

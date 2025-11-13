@@ -116,8 +116,9 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
       } else {
         throw new Error('Telefon raqam yoki parol noto\'g\'ri');
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Kirishda xatolik yuz berdi.';
+      setError(message);
     } finally {
       setLoading(false);
     }

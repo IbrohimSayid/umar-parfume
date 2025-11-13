@@ -36,6 +36,16 @@ interface Product {
   createdAt: string;
 }
 
+interface CartStorageItem {
+  id: string;
+  productId: string;
+  productName: string;
+  productImage: string;
+  size: string;
+  price: number;
+  quantity: number;
+}
+
 export default function MahsulotPage() {
   const params = useParams();
   const router = useRouter();
@@ -139,18 +149,19 @@ export default function MahsulotPage() {
     return digits ? parseInt(digits) : 0;
   };
 
-  const getStoredCart = (): any[] => {
+  const getStoredCart = (): CartStorageItem[] => {
     if (typeof window === 'undefined') return [];
     const stored = localStorage.getItem('cartItems');
     if (!stored) return [];
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored) as CartStorageItem[];
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
   };
 
-  const saveCart = (items: any[]) => {
+  const saveCart = (items: CartStorageItem[]) => {
     if (typeof window === 'undefined') return;
     localStorage.setItem('cartItems', JSON.stringify(items));
     const totalCount = items.reduce((sum, item) => sum + (item.quantity || 0), 0);

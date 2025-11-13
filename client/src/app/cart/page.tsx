@@ -20,6 +20,22 @@ interface CartItem {
   quantity: number;
 }
 
+interface RemoteProductSize {
+  size: string;
+  price: string | number;
+  stock?: string | number;
+}
+
+interface StoredCartItem {
+  id: string;
+  productId: string;
+  productName: string;
+  productImage: string;
+  size: string;
+  price: number;
+  quantity: number;
+}
+
 export default function CartPage() {
   const { t } = useLanguage();
   const { isAuthenticated } = useAuth();
@@ -88,55 +104,125 @@ export default function CartPage() {
   };
 
   // Map of productId -> sizes array
-  const [productSizesMap, setProductSizesMap] = useState<Record<string, Array<{ size: string; price: any; stock?: any }>>>({});
+  const [productSizesMap, setProductSizesMap] = useState<Record<string, RemoteProductSize[]>>({});
 
-  // Load product sizes for items in cart
-  useEffect(() => {
-    const loadSizes = async () => {
-      const ids = Array.from(new Set(cartItems.map(i => i.productId).filter(Boolean)));
-      const map: Record<string, any> = { ...productSizesMap };
-      for (const id of ids) {
-        if (map[id]) continue;
-        try {
-          const ref = doc(db, "products", id);
-          const snap = await getDoc(ref);
-          if (snap.exists()) {
-            const data: any = snap.data();
-            map[id] = Array.isArray(data.sizes) ? data.sizes : [];
-          } else {
-            map[id] = [];
-          }
-        } catch (error) {
-          console.error('Product sizes load error', error);
-          map[id] = [];
-        }
-      }
-      setProductSizesMap(map);
-    };
-    if (cartItems.length > 0) loadSizes();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartItems]);
-
-  const parsePrice = (value: any) => {
-    if (typeof value === 'number') return value;
-    if (!value) return 0;
+  const parsePrice = (value: string | number | null | undefined): number => {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (!value) {
+      return 0;
+    }
     const digits = String(value).replace(/[^\d]/g, '');
-    return digits ? parseInt(digits) : 0;
+    return digits ? parseInt(digits, 10) : 0;
   };
 
-  const handleChangeSize = (itemId: string, newSize: string) => {
-    const updated = cartItems.map(item => {
-      if (item.id !== itemId) return item;
-      const sizes = productSizesMap[item.productId] || [];
-      const found = sizes.find((s: any) => String(s.size) === String(newSize));
-      return {
-        ...item,
-        size: newSize,
-        price: found ? parsePrice(found.price) : item.price
-      };
+  const loadCartFromStorage = (): StoredCartItem[] => {
+    const storedCart = localStorage.getItem('cartItems');
+    if (!storedCart) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(storedCart) as StoredCartItem[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    const parsedCart = loadCartFromStorage();
+    if (parsedCart.length) {
+      setCartItems(parsedCart);
+      const totalCount = parsedCart.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { count: totalCount } }));
+    }
+
+    const loadSizes = async () => {
+      const ids = Array.from(new Set(parsedCart.map((item) => item.productId).filter(Boolean)));
+      if (!ids.length) {
+        return;
+      }
+      const map: Record<string, RemoteProductSize[]> = {};
+      await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const ref = doc(db, 'products', id);
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+              const data = snap.data() as { sizes?: RemoteProductSize[] };
+              map[id] = Array.isArray(data.sizes) ? data.sizes : [];
+            } else {
+              map[id] = [];
+            }
+          } catch (error) {
+            console.error('Product sizes load error:', error);
+            map[id] = [];
+          }
+        })
+      );
+      setProductSizesMap(map);
+    };
+
+    loadSizes().finally(() => {
+      setIsLoading(false);
+      updateScrollButtons();
     });
-    setCartItems(updated);
-    saveCartToLocalStorage(updated);
+  }, [updateScrollButtons]);
+
+  useEffect(() => {
+    const missingIds = cartItems
+      .map((item) => item.productId)
+      .filter(Boolean)
+      .filter((id, index, array) => array.indexOf(id) === index)
+      .filter((id) => !productSizesMap[id]);
+
+    if (!missingIds.length) {
+      return;
+    }
+
+    const fetchSizes = async () => {
+      const map: Record<string, RemoteProductSize[]> = { ...productSizesMap };
+      await Promise.all(
+        missingIds.map(async (id) => {
+          try {
+            const ref = doc(db, 'products', id);
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+              const data = snap.data() as { sizes?: RemoteProductSize[] };
+              map[id] = Array.isArray(data.sizes) ? data.sizes : [];
+            } else {
+              map[id] = [];
+            }
+          } catch (error) {
+            console.error('Product sizes incremental load error:', error);
+            map[id] = [];
+          }
+        })
+      );
+      setProductSizesMap(map);
+    };
+
+    fetchSizes();
+  }, [cartItems, productSizesMap]);
+
+  const handleChangeSize = (itemId: string, newSize: string) => {
+    setCartItems((prevItems) => {
+      const updatedItems = prevItems.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+        const options = productSizesMap[item.productId] || [];
+        const selectedSize = options.find((option) => String(option.size) === newSize);
+        return {
+          ...item,
+          size: newSize,
+          price: selectedSize ? parsePrice(selectedSize.price) : item.price,
+        };
+      });
+      saveCartToLocalStorage(updatedItems);
+      return updatedItems;
+    });
   };
 
   const updateQuantity = (id: string, newQuantity: number) => {
@@ -253,7 +339,7 @@ export default function CartPage() {
                         {t.products}
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        O'LCHAM
+                        O&apos;LCHAM
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         {t.price}
@@ -284,7 +370,7 @@ export default function CartPage() {
                             <div>
                               <p className="text-sm font-semibold text-gray-900">{item.productName}</p>
                               <Link href={`/mahsulot/${item.productId}`} className="text-xs text-yellow-600 hover:text-yellow-700">
-                                Batafsil ko'rish
+                                Batafsil ko&apos;rish
                               </Link>
                             </div>
                           </div>
@@ -296,11 +382,16 @@ export default function CartPage() {
                               onChange={(e) => handleChangeSize(item.id, e.target.value)}
                               className="border border-gray-200 rounded-lg p-2 text-sm"
                             >
-                              {productSizesMap[item.productId].map((s: any) => (
-                                <option key={s.size} value={s.size}>
-                                  {s.size}
-                                </option>
-                              ))}
+                              {productSizesMap[item.productId].map((sizeOption) => {
+                                const { size, stock } = sizeOption;
+                                const disabled = parsePrice(stock) <= 0;
+                                return (
+                                  <option key={size} value={size} disabled={disabled}>
+                                    {size}
+                                    {disabled ? ' (tugagan)' : ''}
+                                  </option>
+                                );
+                              })}
                             </select>
                           ) : (
                             <span>{item.size}</span>
@@ -319,7 +410,14 @@ export default function CartPage() {
                               type="number"
                               min={1}
                               value={item.quantity}
-                              onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                              onChange={(e) =>
+                                updateQuantity(
+                                  item.id,
+                                  Number.isNaN(parseInt(e.target.value, 10))
+                                    ? 1
+                                    : parseInt(e.target.value, 10)
+                                )
+                              }
                               className="w-16 border border-gray-300 rounded-lg text-center py-1"
                             />
                             <button
@@ -338,7 +436,7 @@ export default function CartPage() {
                             onClick={() => removeItem(item.id)}
                             className="text-red-500 hover:text-red-600 transition-colors font-medium"
                           >
-                            O'chirish
+                            O&apos;chirish
                           </button>
                         </td>
                       </tr>

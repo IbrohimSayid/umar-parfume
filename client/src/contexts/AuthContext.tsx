@@ -1,15 +1,31 @@
+type WindowWithAuth = Window & {
+  confirmationResult?: MockConfirmationResult;
+  pendingMockUser?: MockUser;
+};
+
+const createMockUser = (phoneNumber: string, uid?: string): MockUser => ({
+  uid: uid ?? `user_${Date.now()}`,
+  phoneNumber,
+  isAnonymous: false,
+  providerData: [],
+  metadata: { creationTime: '', lastSignInTime: '' },
+  delete: async () => {},
+  getIdToken: async () => '',
+  getIdTokenResult: async () => ({}),
+  reload: async () => {},
+  tenantId: null,
+  toJSON: () => ({}),
+});
 'use client';
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
-import { 
-  RecaptchaVerifier, 
-  // signInWithPhoneNumber, // Ishlatilmagan
-  // PhoneAuthProvider, // Ishlatilmagan
-  User, 
+import {
+  // RecaptchaVerifier,
+  // signInWithPhoneNumber,
+  // PhoneAuthProvider,
+  User,
   onAuthStateChanged,
-  ConfirmationResult,
-  AuthError,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { toast } from 'react-toastify';
@@ -25,12 +41,51 @@ interface UserProfile {
 }
 
 // Auth context interface
+interface MockUser {
+  uid: string;
+  phoneNumber: string;
+  isAnonymous: boolean;
+  providerData: unknown[];
+  metadata: { creationTime: string; lastSignInTime: string };
+  delete: () => Promise<void>;
+  getIdToken: () => Promise<string>;
+  getIdTokenResult: () => Promise<unknown>;
+  reload: () => Promise<void>;
+  tenantId: string | null;
+  toJSON: () => Record<string, unknown>;
+}
+
+interface MockConfirmationResult {
+  verificationId: string;
+  confirm: (code: string) => Promise<{ user: MockUser }>;
+}
+
+type AuthenticatedUser = User | MockUser;
+
+interface VerificationResponse {
+  success: boolean;
+  confirmationResult?: MockConfirmationResult;
+  error?: string;
+}
+
+interface VerifyCodeResponse {
+  success: boolean;
+  user?: AuthenticatedUser;
+  error?: string;
+}
+
+interface LoginResponse {
+  success: boolean;
+  user?: AuthenticatedUser;
+  error?: string;
+}
+
 interface AuthContextType {
-  user: User | null;
+  user: AuthenticatedUser | null;
   userProfile: UserProfile | null;
-  sendVerificationCode: (phoneNumber: string) => Promise<any>;
-  loginWithCredentials: (phoneNumber: string, password: string) => Promise<any>;
-  verifyCode: (code: string) => Promise<any>;
+  sendVerificationCode: (phoneNumber: string) => Promise<VerificationResponse>;
+  loginWithCredentials: (phoneNumber: string, password: string) => Promise<LoginResponse>;
+  verifyCode: (code: string) => Promise<VerifyCodeResponse>;
   saveUserProfile: (profile: UserProfile) => Promise<boolean>;
   checkPhoneExists: (phoneNumber: string) => Promise<boolean>;
   isAuthenticated: () => boolean;
@@ -42,7 +97,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Provider component
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Check if user is authenticated on load
@@ -62,7 +117,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const storedProfile = localStorage.getItem('userProfile');
           
           if (storedUser && storedProfile) {
-            setUser(JSON.parse(storedUser));
+            setUser(JSON.parse(storedUser) as AuthenticatedUser);
             setUserProfile(JSON.parse(storedProfile));
             return true;
           }
@@ -121,23 +176,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // Setup reCAPTCHA
-  // const setupRecaptcha = () => {
-  //   if (typeof window !== 'undefined' && !(window as any).recaptchaVerifier) {
-  //     (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-  //       'size': 'invisible',
-  //       'callback': (response: any) => {
-  //         console.log('reCAPTCHA solved');
-  //       },
-  //       'expired-callback': () => {
-  //         console.log('reCAPTCHA expired');
-  //       }
-  //     });
-  //   }
-  // };
-
   // Send SMS verification code
-  const sendVerificationCode = async (phoneNumber: string): Promise<any> => {
+  const sendVerificationCode = async (phoneNumber: string): Promise<VerificationResponse> => {
     try {
       // Test rejimda ishlash (haqiqiy SMS yubormasdan)
       console.log('📱 TEST REJIMI: SMS kod yuborildi:', phoneNumber);
@@ -151,24 +191,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         position: "top-center"
       });
       
-      // Mock user yaratish (lekin Firebase ID bilan)
-      const mockUser: any = {
-        uid: `user_${Date.now()}`,
-        phoneNumber: phoneNumber,
-        isAnonymous: false,
-        providerData: [],
-        metadata: { creationTime: '', lastSignInTime: '' },
-        delete: async () => {},
-        getIdToken: async () => '',
-        getIdTokenResult: async () => ({} as any),
-        reload: async () => {},
-        tenantId: null,
-        toJSON: () => ({}),
-        // Boshqa User xususiyatlari (agar kerak bo'lsa)
-      };
+      const mockUser = createMockUser(phoneNumber);
       
       // Mock confirmation result
-      const mockConfirmationResult: any = {
+      const mockConfirmationResult: MockConfirmationResult = {
         verificationId: '',
         confirm: async (code: string) => {
           if (code === testSmsCode) {
@@ -180,23 +206,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       if (typeof window !== 'undefined') {
-        (window as any).confirmationResult = mockConfirmationResult;
-        (window as any).pendingMockUser = mockUser;
+        const win = window as WindowWithAuth;
+        win.confirmationResult = mockConfirmationResult;
+        win.pendingMockUser = mockUser;
       }
       
       return { success: true, confirmationResult: mockConfirmationResult };
-      
-      /* HAQIQIY SMS YUBORISH - KEYINROQ YOQISH UCHUN
-      setupRecaptcha();
-      const appVerifier = (window as any).recaptchaVerifier;
-      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      (window as any).confirmationResult = confirmationResult;
-      
-      toast.success('Tasdiqlash kodi yuborildi');
-      console.log('✅ SMS yuborildi:', phoneNumber);
-      
-      return { success: true, confirmationResult };
-      */
     } catch (error) {
       console.error('SMS sending error:', error);
       
@@ -219,37 +234,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // Verify SMS code
-  const verifyCode = async (code: string): Promise<any> => {
+  const verifyCode = async (code: string): Promise<VerifyCodeResponse> => {
     try {
-      if (typeof window !== 'undefined' && !(window as any).confirmationResult) {
-        toast.error('Avval telefon raqamni kiriting');
-        return { success: false, error: 'Avval telefon raqamni kiriting' };
-      }
-
-      const result = await (window as any).confirmationResult.confirm(code);
-      const confirmedUser = result.user || (typeof window !== 'undefined' ? (window as any).pendingMockUser : null);
-      if (!confirmedUser) {
-        toast.error('Foydalanuvchi maʼlumotlari topilmadi');
-        return { success: false, error: 'Foydalanuvchi topilmadi' };
-      }
-
-      setUser(confirmedUser);
       if (typeof window !== 'undefined') {
-        delete (window as any).pendingMockUser;
-        delete (window as any).confirmationResult;
+        const win = window as WindowWithAuth;
+        if (!win.confirmationResult) {
+          toast.error('Avval telefon raqamni kiriting');
+          return { success: false, error: 'Avval telefon raqamni kiriting' };
+        }
+        const result = await win.confirmationResult.confirm(code);
+        const confirmedUser: AuthenticatedUser | null =
+          result.user || win.pendingMockUser || null;
+        if (!confirmedUser) {
+          toast.error('Foydalanuvchi maʼlumotlari topilmadi');
+          return { success: false, error: 'Foydalanuvchi topilmadi' };
+        }
+
+        setUser(confirmedUser);
+        delete win.pendingMockUser;
+        delete win.confirmationResult;
+
+        const token = `umar_parfume_${Date.now()}_${confirmedUser.uid}`;
+        const expiryDate = new Date();
+        expiryDate.setMonth(expiryDate.getMonth() + 1);
+
+        localStorage.setItem('userAuthToken', token);
+        localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
+        localStorage.setItem('userData', JSON.stringify(confirmedUser));
+
+        return { success: true, user: confirmedUser };
       }
-      
-      // 1 oylik token yaratish
-      const token = `umar_parfume_${Date.now()}_${confirmedUser.uid}`;
-      const expiryDate = new Date();
-      expiryDate.setMonth(expiryDate.getMonth() + 1); // 1 oy qo'shish
-      
-      // Token va ma'lumotlarni saqlash
-      localStorage.setItem('userAuthToken', token);
-      localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
-      localStorage.setItem('userData', JSON.stringify(confirmedUser));
-      
-      return { success: true, user: confirmedUser };
+      toast.error('Avval telefon raqamni kiriting');
+      return { success: false, error: 'Avval telefon raqamni kiriting' };
     } catch (error) {
       console.error('Verification error:', error);
       
@@ -367,7 +383,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const loginWithCredentials = async (phoneNumber: string, password: string) => {
+  const loginWithCredentials = async (phoneNumber: string, password: string): Promise<LoginResponse> => {
     try {
       const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
       const usersCollection = collection(db, "users");
@@ -387,19 +403,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { success: false, error: 'Parol noto\'g\'ri' };
       }
 
-      const authUser: any = {
-        uid: userData.uid || userDoc.id,
-        phoneNumber: userData.phoneNumber,
-        isAnonymous: false,
-        providerData: [],
-        metadata: { creationTime: '', lastSignInTime: '' },
-        delete: async () => {},
-        getIdToken: async () => '',
-        getIdTokenResult: async () => ({} as any),
-        reload: async () => {},
-        tenantId: null,
-        toJSON: () => ({})
-      };
+      const authUser = createMockUser(
+        userData.phoneNumber,
+        (userData.uid || userDoc.id) as string
+      );
 
       setUser(authUser);
       setUserProfile(userData);

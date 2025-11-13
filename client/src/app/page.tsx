@@ -148,10 +148,13 @@ export default function Home() {
                           <Link key={product.id} href={`/mahsulot/${product.id}`} className="block">
                             <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 cursor-pointer">
                               <div className="aspect-w-3 aspect-h-4 bg-gray-200">
-                                <img
+                                <Image
                                   src={product.image}
                                   alt={product.name}
+                                  width={300}
+                                  height={256}
                                   className="w-full h-64 object-cover"
+                                  unoptimized
                                 />
                               </div>
                               <div className="p-4">

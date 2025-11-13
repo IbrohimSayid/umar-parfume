@@ -32,6 +32,16 @@ export interface Product {
   status: string;
 }
 
+interface CartStorageItem {
+  id: string;
+  productId: string;
+  productName: string;
+  productImage: string;
+  size: string;
+  price: number;
+  quantity: number;
+}
+
 // Available brands and fragrance notes
 const DEFAULT_BRANDS = [
   'Chanel', 'Dior', 'Lancôme', 'Yves Saint Laurent', 'Paco Rabanne', 
@@ -169,18 +179,19 @@ export default function MahsulotlarPage() {
     return digits ? parseInt(digits) : 0;
   };
 
-  const getStoredCart = (): any[] => {
+  const getStoredCart = (): CartStorageItem[] => {
     if (typeof window === 'undefined') return [];
     const stored = localStorage.getItem('cartItems');
     if (!stored) return [];
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored) as CartStorageItem[];
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
   };
 
-  const saveCart = (items: any[]) => {
+  const saveCart = (items: CartStorageItem[]) => {
     if (typeof window === 'undefined') return;
     localStorage.setItem('cartItems', JSON.stringify(items));
     const totalCount = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
