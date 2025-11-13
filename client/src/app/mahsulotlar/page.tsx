@@ -347,7 +347,7 @@ export default function MahsulotlarPage() {
   const activeFilterCount = activeFilterTags.length;
 
   return (
-    <div className="bg-gray-50 pb-20">
+    <div className="bg-gray-50 pb-32 md:pb-0">
       {/* Page Header */}
       <div className="bg-black text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -362,7 +362,7 @@ export default function MahsulotlarPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32 md:pb-16">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">{t.products}</h1>
 
         {/* Mobile Filter Button */}

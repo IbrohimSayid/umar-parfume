@@ -285,19 +285,42 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // Save user profile
+  const normalizePhoneNumber = (value?: string) => {
+    if (!value) return '';
+    return value.startsWith('+') ? value : `+${value.replace(/\D/g, '')}`;
+  };
+
   const saveUserProfile = async (profile: UserProfile) => {
     try {
-      if (!user) {
+      const fallbackUser =
+        profile.phoneNumber
+          ? createMockUser(
+              normalizePhoneNumber(profile.phoneNumber),
+              profile.uid
+            )
+          : null;
+
+      const activeUser = user ?? fallbackUser;
+
+      if (!activeUser) {
         toast.error('Foydalanuvchi tizimga kirmagan');
         console.error('User mavjud emas, profil saqlanmadi');
         return false;
       }
 
+      if (!user) {
+        setUser(activeUser);
+      }
+
       // To'liq profil ma'lumotlarini tayyorlash
+      const normalizedPhone = normalizePhoneNumber(
+        activeUser.phoneNumber || profile.phoneNumber
+      );
+
       const fullProfile: UserProfile = {
         ...profile,
-        uid: user.uid,
-        phoneNumber: user.phoneNumber || profile.phoneNumber,
+        uid: profile.uid || activeUser.uid,
+        phoneNumber: normalizedPhone,
         createdAt: profile.createdAt || new Date().toISOString()
       };
 
@@ -308,7 +331,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         // Ma'lumotlarni Firestore'ga saqlash
         const usersCollection = collection(db, "users");
-        const userDocRef = doc(usersCollection, user.uid);
+        const userDocRef = doc(usersCollection, fullProfile.uid);
         
         await setDoc(userDocRef, fullProfile, { merge: true });
         
@@ -316,7 +339,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         toast.success('Profil saqlandi');
         
         // Vaqtinchalik localStorage ga ham saqlash
-        localStorage.setItem(`userProfile_${user.uid}`, JSON.stringify(fullProfile));
+        localStorage.setItem(`userProfile_${fullProfile.uid}`, JSON.stringify(fullProfile));
         localStorage.setItem('userProfile', JSON.stringify(fullProfile));
         
         return true;
@@ -327,7 +350,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         toast.error('Ma\'lumotlar bazasiga saqlashda xatolik yuz berdi');
         
         // Vaqtinchalik localStorage ga saqlash
-        localStorage.setItem(`userProfile_${user.uid}`, JSON.stringify(fullProfile));
+        localStorage.setItem(`userProfile_${fullProfile.uid}`, JSON.stringify(fullProfile));
         console.log('⚠️ Profil faqat localStorage ga saqlandi:', fullProfile);
         toast.warning('Ma\'lumotlar vaqtinchalik saqlandi');
         

@@ -87,15 +87,15 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <Link href="/" className="flex items-center space-x-3 group cursor-pointer">
+            <Link href="/" className="flex items-center space-x-3 cursor-pointer">
               {/* Yangi Logo */}
               <div className="relative">
                 <Image
-                  src="/images/logo.jpg" // Rasmingizning yo'li
+                  src="/images/logo.png" // Rasmingizning yo'li
                   alt="Umar Perfume Logo" // Rasm uchun tavsif
                   width={40} // Rasmingizning kengligi (pikselda)
                   height={40} // Rasmingizning balandligi (pikselda)
-                  className="rounded-lg shadow-lg group-hover:shadow-yellow-400/30 transition-all duration-300"
+                  className="rounded-lg shadow-lg transition-all duration-300"
                 />
               </div>
               
@@ -150,12 +150,10 @@ export default function Navbar() {
             <div className="relative">
               <button
                 onClick={() => setIsLanguageMenuOpen(!isLanguageMenuOpen)}
-                className="flex items-center space-x-2 text-white hover:text-yellow-400 px-3 py-2 rounded-lg transition-colors duration-200 cursor-pointer border border-transparent hover:border-yellow-400"
+                className="flex items-center text-white hover:text-yellow-400 px-3 py-2 rounded-lg transition-colors duration-200 cursor-pointer border border-transparent hover:border-yellow-400"
+                aria-label="Tilni tanlash"
               >
-                <span className="text-xl">{languageFlags[language] || '🌐'}</span>
-                <span className="hidden md:block text-sm font-medium">
-                  {language === 'uz' ? "O'zbek" : 'Русский'}
-                </span>
+                <span className="text-2xl leading-none">{languageFlags[language] || '🌐'}</span>
                 <svg className={`w-4 h-4 transition-transform duration-200 ${isLanguageMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>

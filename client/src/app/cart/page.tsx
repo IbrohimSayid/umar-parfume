@@ -306,7 +306,7 @@ export default function CartPage() {
   }
 
   return (
-    <div className="bg-gray-50 py-8 pb-20">
+    <div className="bg-gray-50 py-8 pb-32 md:pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">{t.cart}</h1>
 
@@ -361,7 +361,7 @@ export default function CartPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center space-x-4">
                             <Image
-                              src={item.productImage || '/images/logo.jpg'}
+                              src={item.productImage || '/images/logo.png'}
                               alt={item.productName}
                               width={64}
                               height={64}

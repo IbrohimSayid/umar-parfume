@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function BottomNavbar() {
   const pathname = usePathname();
   const { t } = useLanguage();
+  const { isAuthenticated } = useAuth();
 
   const navItems = [
     {
@@ -27,16 +29,24 @@ export default function BottomNavbar() {
         </svg>
       ),
     },
-    {
-      name: t.orders,
-      href: '/buyurtmalarim',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-        </svg>
-      ),
-    },
+    ...(isAuthenticated()
+      ? [
+          {
+            name: t.orders,
+            href: '/buyurtmalarim',
+            icon: (
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
   ];
+
+  if (!navItems.length) {
+    return null;
+  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-black border-t border-gray-800 z-50 shadow-lg">
@@ -55,4 +65,4 @@ export default function BottomNavbar() {
       </div>
     </nav>
   );
-} 
+}

@@ -87,12 +87,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-32 md:pb-0">
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-black via-gray-900 to-black text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-8">
           <Image
-            src="/images/logo.jpg"
+            src="/images/logo.png"
             alt="Umar Perfume Logo"
             width={140}
             height={140}
@@ -282,14 +282,14 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-black text-white py-16 pb-20">
+      <footer className="bg-black text-white py-16 pb-28 md:pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Company Info (Logo and Name) */}
             <div className="col-span-1 md:col-span-2">
               <div className="flex items-center space-x-3 mb-4">
                 <Image
-                  src="/images/logo.jpg" // Rasmingizning yo'li
+                  src="/images/logo.png" // Rasmingizning yo'li
                   alt="Umar Perfume Logo" // Rasm uchun tavsif
                   width={40} // Kenglik
                   height={40} // Balandlik
@@ -318,15 +318,23 @@ export default function Home() {
               <h4 className="text-lg font-semibold mb-4">{t.contact}</h4>
               <div className="space-y-3">
                 <a href={`tel:${t.phoneNumber.replace(/\s/g, '')}`} className="flex items-center space-x-2 text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">
-                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M20.003 14.6c-.33-.33-.77-.5-1.2-.5h-2.2c-.43 0-.87.17-1.2.5-.66.66-1.55 1.05-2.5 1.05-.95 0-1.84-.39-2.5-1.05-.66-.66-1.05-1.55-1.05-2.5 0-.95.39-1.84 1.05-2.5.33-.33.77-.5 1.2-.5h2.2c.43 0 .87-.17 1.2-.5.66-.66 1.05-1.55 1.05-2.5 0-.95-.39-1.84-1.05-2.5-.33-.33-.77-.5-1.2-.5h-2.2c-.43 0-.87.17-1.2.5-2.9 2.9-2.9 7.6 0 10.5 2.9 2.9 7.6 2.9 10.5 0 .33-.33.77-.5 1.2-.5h2.2c.43 0 .87-.17 1.2-.5.66-.66 1.05-1.55 1.05-2.5 0-.95-.39-1.84-1.05-2.5-.33-.33-.77-.5-1.2-.5h-2.2c-.43 0-.87.17-1.2-.5zm-4.4-7.4c.33-.33.77-.5 1.2-.5h2.2c.43 0 .87-.17 1.2-.5.66-.66 1.05-1.55 1.05-2.5 0-.95-.39-1.84-1.05-2.5-.33-.33-.77-.5-1.2-.5h-2.2c-.43 0-.87.17-1.2-.5-2.9-2.9-2.9-7.6 0-10.5 2.9-2.9 7.6-2.9 10.5 0 .33.33.77.5 1.2.5h2.2c.43 0 .87-.17 1.2-.5.66-.66 1.05-1.55 1.05-2.5 0-.95-.39-1.84-1.05-2.5-.33-.33-.77-.5-1.2-.5h-2.2c-.43 0-.87.17-1.2-.5zM.04 11.08L24 0 12.87 24 .04 11.08zM17.15 7.42l-5.63 5.34-1.57-1.49-3.15 3.03-3.08-1.78 12.03-12.03c.53-.53 1.39-.53 1.92 0 .53.53.53 1.39 0 1.92z"/></svg>
+                  <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.25 6.75c0 7.66 6.34 14 14 14h1.5a2.5 2.5 0 002.5-2.5v-2.12a1 1 0 00-.73-.97l-4.3-1.24a1 1 0 00-1.03.3l-.9 1.08a1 1 0 01-1.14.3 8.97 8.97 0 01-5.47-5.47 1 1 0 01.3-1.14l1.08-.9a1 1 0 00.3-1.03L7.34 3.48a1 1 0 00-.97-.73H4.25A2 2 0 002.25 4.75v2z" />
+                  </svg>
                   <span>{t.phoneNumber}</span>
                 </a>
                 <a href={`https://www.instagram.com/${t.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">
-                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M7.05 0h9.9c1.92 0 3.49 1.57 3.49 3.49v9.9c0 1.92-1.57 3.49-3.49 3.49h-9.9c-1.92 0-3.49-1.57-3.49-3.49v-9.9c0-1.92 1.57-3.49 3.49-3.49zM12 11.23c-2.09 0-3.77 1.69-3.77 3.77s1.69 3.77 3.77 3.77 3.77-1.69 3.77-3.77-1.69-3.77-3.77-3.77zm4.27-5.75c-.53 0-.96.43-.96.96s.43.96.96.96.96-.43.96-.96-.43-.96-.96-.96z"/></svg>
+                  <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect width="18" height="18" x="3" y="3" rx="4" ry="4" />
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                    <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
+                  </svg>
                   <span>@{t.instagram}</span>
                 </a>
                 <a href={`https://t.me/${t.telegram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">
-                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M.04 11.08L24 0 12.87 24 .04 11.08zM17.15 7.42l-5.63 5.34-1.57-1.49-3.15 3.03-3.08-1.78 12.03-12.03c.53-.53 1.39-.53 1.92 0 .53.53.53 1.39 0 1.92z"/></svg>
+                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M22.5 2.4L1.5 10.2c-.9.35-.89 1.66.02 2l5.3 1.95 2.13 6.68c.27.85 1.38 1.08 1.95.39l2.86-3.47 5.4 4.13c.7.53 1.72.13 1.9-.76L24 3.4c.2-.98-.73-1.77-1.5-1z" />
+                  </svg>
                   <span>@{t.telegram}</span>
                 </a>
               </div>

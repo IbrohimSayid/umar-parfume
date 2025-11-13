@@ -22,6 +22,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Umar Perfume",
   description: "Umar Perfume - erkaklar va ayollar uchun premium sifatli atirlar. Eng yaxshi brendlar va noyob hidlar.",
+  icons: {
+    icon: "/images/logo.png",
+    shortcut: "/images/logo.png",
+    apple: "/images/logo.png",
+  },
 };
 
 export default function RootLayout({

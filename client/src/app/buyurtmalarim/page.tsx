@@ -93,7 +93,7 @@ export default function BuyurtmalarimPage() {
   }
 
   return (
-    <div className="bg-gray-50 py-8 pb-20">
+    <div className="bg-gray-50 py-8 pb-32 md:pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">

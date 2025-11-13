@@ -223,6 +223,9 @@ export default function MahsulotPage() {
     });
   };
 
+  const resolvedProductImage =
+    product?.image && product.image.trim() ? product.image : '/images/logo.png';
+
   const handleAddToCart = () => {
     if (!selectedSize) {
       showConfirmModal(
@@ -238,7 +241,7 @@ export default function MahsulotPage() {
     const cartItems = getStoredCart();
     const productId = product?.id ?? '';
     const productName = product?.name ?? '';
-    const productImage = product?.image ?? '';
+    const productImage = resolvedProductImage;
     const itemId = `${productId}-${selectedSize.size}`;
     const existingItemIndex = cartItems.findIndex((item) => item.id === itemId);
 
@@ -357,8 +360,14 @@ export default function MahsulotPage() {
     );
   }
 
+  const selectedSizeImage = selectedSize ? getSizeImage(selectedSize) : undefined;
+  const mainImageSrc =
+    selectedSizeImage && selectedSizeImage.trim().length > 0
+      ? selectedSizeImage
+      : resolvedProductImage;
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-32 md:pb-12">
       {/* Breadcrumb */}
       <div className="bg-white border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -389,16 +398,14 @@ export default function MahsulotPage() {
               )}
               
               <Image 
-                src={selectedSize ? 
-                  (getSizeImage(selectedSize) || '') : // undefined bo'lsa bo'sh string
-                  (product?.image || '') // undefined bo'lsa bo'sh string
-                } 
+                src={mainImageSrc}
                 alt={`${product.name} - ${selectedSize?.size || 'asosiy'}`}
                 width={500} // Example width, adjust as needed
                 height={500} // Example height, adjust as needed
                 className={`w-full h-96 object-cover transition-all duration-500 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
                 onLoad={() => setImageLoading(false)}
                 onLoadingComplete={() => setImageLoading(false)}
+                unoptimized
                 onError={() => {
                   // e.currentTarget.src = 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=400&h=500&fit=crop&auto=format&q=80';
                 }}
@@ -632,11 +639,12 @@ export default function MahsulotPage() {
                   <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer transform hover:scale-[1.02]">
                     <div className="aspect-w-3 aspect-h-4 bg-gray-200">
                       <Image 
-                        src={relatedProduct.image || ''} // undefined bo'lsa bo'sh string
+                        src={relatedProduct.image && relatedProduct.image.trim().length > 0 ? relatedProduct.image : '/images/logo.png'}
                         alt={relatedProduct.name}
                         width={192} // 48 * 4
                         height={192} // 48 * 4
                         className="w-full h-48 object-cover"
+                        unoptimized
                         onError={() => {
                           // e.currentTarget.src = 'https://picsum.photos/300/400?random=related';
                         }}

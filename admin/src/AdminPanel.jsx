@@ -302,6 +302,21 @@ const AdminPanel = () => {
     };
 
     const handleRemoveBrand = async (brand) => {
+        const isBrandUsed = products.some((product) => {
+            const productBrand = (product.brand || '').toLowerCase();
+            return productBrand === brand.toLowerCase();
+        });
+
+        if (isBrandUsed) {
+            showConfirmModal(
+                'Diqqat!',
+                `${brand} brendi hozirda sotuvdagi mahsulotlarda mavjud. Avval ushbu brenddagi mahsulotlarni o\'chirib tashlang.`,
+                () => {},
+                'warning'
+            );
+            return;
+        }
+
         const updatedBrands = availableBrands.filter(item => item !== brand);
         setAvailableBrands(updatedBrands);
         if (newProduct.brand === brand) {
@@ -777,6 +792,21 @@ const AdminPanel = () => {
     };
 
     const removeNote = async (note) => {
+        const isNoteUsed = products.some((product) => {
+            const productNotes = product.fragrance_notes || product.fragranceNotes || [];
+            return Array.isArray(productNotes) && productNotes.some((item) => item === note);
+        });
+
+        if (isNoteUsed) {
+            showConfirmModal(
+                'Diqqat!',
+                `${note} notasi hozirda sotuvdagi mahsulotlarda mavjud. Avval ushbu notadan foydalanayotgan mahsulotlarni o\'chirib tashlang.`,
+                () => {},
+                'warning'
+            );
+            return;
+        }
+
         const updatedNotes = availableNotes.filter(n => n !== note);
         setAvailableNotes(updatedNotes);
         setNewProduct({
