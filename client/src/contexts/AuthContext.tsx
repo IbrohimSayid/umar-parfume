@@ -251,10 +251,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           return { success: false, error: 'Foydalanuvchi topilmadi' };
         }
 
+        // User state ni yangilash
         setUser(confirmedUser);
-        delete win.pendingMockUser;
-        delete win.confirmationResult;
-
+        
+        // Token va ma'lumotlarni saqlash
         const token = `umar_parfume_${Date.now()}_${confirmedUser.uid}`;
         const expiryDate = new Date();
         expiryDate.setMonth(expiryDate.getMonth() + 1);
@@ -262,6 +262,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.setItem('userAuthToken', token);
         localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
         localStorage.setItem('userData', JSON.stringify(confirmedUser));
+        
+        // Window object dan tozalash
+        delete win.pendingMockUser;
+        delete win.confirmationResult;
+        
+        console.log('✅ SMS kod tasdiqlandi, user o\'rnatildi:', confirmedUser);
 
         return { success: true, user: confirmedUser };
       }
@@ -292,68 +298,73 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const saveUserProfile = async (profile: UserProfile) => {
     try {
-      const fallbackUser =
-        profile.phoneNumber
-          ? createMockUser(
-              normalizePhoneNumber(profile.phoneNumber),
-              profile.uid
-            )
-          : null;
+      // Telefon raqamni normalizatsiya qilish
+      const normalizedPhone = normalizePhoneNumber(
+        profile.phoneNumber || user?.phoneNumber || ''
+      );
 
-      const activeUser = user ?? fallbackUser;
-
-      if (!activeUser) {
-        toast.error('Foydalanuvchi tizimga kirmagan');
-        console.error('User mavjud emas, profil saqlanmadi');
+      if (!normalizedPhone) {
+        toast.error('Telefon raqamini aniqlab bo\'lmadi');
+        console.error('❌ Telefon raqami topilmadi, profil saqlanmadi', profile);
         return false;
       }
 
-      if (!user) {
-        setUser(activeUser);
-      }
+      // UID ni aniqlash
+      const resolvedUid = profile.uid || user?.uid || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // To'liq profil ma'lumotlarini tayyorlash
-      const normalizedPhone = normalizePhoneNumber(
-        activeUser.phoneNumber || profile.phoneNumber
-      );
+      // Agar user mavjud bo'lmasa, yangi user yaratish
+      let activeUser = user;
+      if (!activeUser) {
+        console.log('ℹ️ User mavjud emas, yangi user yaratilmoqda...', {
+          normalizedPhone,
+          resolvedUid
+        });
+        activeUser = createMockUser(normalizedPhone, resolvedUid);
+        setUser(activeUser);
+
+        const token = `umar_parfume_${Date.now()}_${activeUser.uid}`;
+        const expiryDate = new Date();
+        expiryDate.setMonth(expiryDate.getMonth() + 1);
+
+        localStorage.setItem('userAuthToken', token);
+        localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
+        localStorage.setItem('userData', JSON.stringify(activeUser));
+        
+        console.log('✅ Yangi user yaratildi va saqlandi:', activeUser);
+      } else {
+        console.log('✅ User mavjud:', activeUser);
+      }
 
       const fullProfile: UserProfile = {
         ...profile,
-        uid: profile.uid || activeUser.uid,
+        uid: resolvedUid,
         phoneNumber: normalizedPhone,
         createdAt: profile.createdAt || new Date().toISOString()
       };
 
-      // Set the profile in state
       setUserProfile(fullProfile);
-      
-      // Ma'lumotlarni Firestore'ga saqlash
+
       try {
-        // Ma'lumotlarni Firestore'ga saqlash
         const usersCollection = collection(db, "users");
-        const userDocRef = doc(usersCollection, fullProfile.uid);
-        
+        const userDocRef = doc(usersCollection, resolvedUid);
+
         await setDoc(userDocRef, fullProfile, { merge: true });
-        
+
         console.log('✅ Profil Firestore ga saqlandi:', fullProfile);
         toast.success('Profil saqlandi');
-        
-        // Vaqtinchalik localStorage ga ham saqlash
-        localStorage.setItem(`userProfile_${fullProfile.uid}`, JSON.stringify(fullProfile));
+
+        localStorage.setItem(`userProfile_${resolvedUid}`, JSON.stringify(fullProfile));
         localStorage.setItem('userProfile', JSON.stringify(fullProfile));
-        
+
         return true;
       } catch (firestoreError) {
         console.error('Firestore saqlashda xatolik:', firestoreError);
-        
-        // Xatolik haqida ma'lumot
         toast.error('Ma\'lumotlar bazasiga saqlashda xatolik yuz berdi');
-        
-        // Vaqtinchalik localStorage ga saqlash
-        localStorage.setItem(`userProfile_${fullProfile.uid}`, JSON.stringify(fullProfile));
+
+        localStorage.setItem(`userProfile_${resolvedUid}`, JSON.stringify(fullProfile));
         console.log('⚠️ Profil faqat localStorage ga saqlandi:', fullProfile);
         toast.warning('Ma\'lumotlar vaqtinchalik saqlandi');
-        
+
         return false;
       }
     } catch (error) {
@@ -364,8 +375,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // Check if user is authenticated
-  const isAuthenticated = () => {
-    return user !== null;
+  const isAuthenticated = (): boolean => {
+    // User va user.uid tekshiruvi
+    if (user && user.uid) {
+      return true;
+    }
+    
+    // localStorage dan ham tekshirish
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser && parsedUser.uid) {
+          return true;
+        }
+      } catch (e) {
+        // localStorage ma'lumotlari noto'g'ri
+      }
+    }
+    
+    return false;
   };
 
   // Logout

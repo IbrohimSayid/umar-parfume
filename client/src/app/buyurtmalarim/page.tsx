@@ -43,10 +43,20 @@ export default function BuyurtmalarimPage() {
     }
 
     const loadOrders = async () => {
-      if (user) {
-        setIsLoading(true);
-        const userOrders = await getUserOrders(user.uid);
-        setOrders(userOrders);
+      if (user && user.uid) {
+        try {
+          setIsLoading(true);
+          const userOrders = await getUserOrders(user.uid);
+          setOrders(userOrders);
+        } catch (error) {
+          console.error('❌ Buyurtmalarni yuklashda xatolik:', error);
+          setOrders([]);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        console.warn('⚠️ User yoki user.uid mavjud emas');
+        setOrders([]);
         setIsLoading(false);
       }
     };
@@ -186,6 +196,76 @@ export default function BuyurtmalarimPage() {
           </div>
         )}
       </div>
+
+      {/* Footer - asosiy sahifadagi footer bilan bir xil */}
+      <footer className="bg-black text-white py-16 pb-28 md:pb-16 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Company Info (Logo and Name) */}
+            <div className="col-span-1 md:col-span-2">
+              <div className="flex items-center space-x-3 mb-4">
+                <Image
+                  src="/images/logo.png"
+                  alt="Umar Perfume Logo"
+                  width={40}
+                  height={40}
+                  className="rounded-lg shadow-lg"
+                />
+                <div>
+                  <h3 className="text-xl font-bold">Umar Perfume</h3>
+                  <p className="text-sm text-gray-400">Premium atirlar</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Links */}
+            <div>
+              <h4 className="text-lg font-semibold mb-4">{t.quickLinks}</h4>
+              <ul className="space-y-2">
+                <li><Link href="/" className="text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">{t.home}</Link></li>
+                <li><Link href="/mahsulotlar" className="text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">{t.products}</Link></li>
+                {isAuthenticated() && <li><Link href="/buyurtmalarim" className="text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">{t.orders}</Link></li>}
+                {isAuthenticated() && <li><Link href="/profil" className="text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">{t.profile}</Link></li>}
+              </ul>
+            </div>
+
+            {/* Contact Info */}
+            <div>
+              <h4 className="text-lg font-semibold mb-4">{t.contact}</h4>
+              <div className="space-y-3">
+                <a href={`tel:${t.phoneNumber.replace(/\s/g, '')}`} className="flex items-center space-x-2 text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">
+                  <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.25 6.75c0 7.66 6.34 14 14 14h1.5a2.5 2.5 0 002.5-2.5v-2.12a1 1 0 00-.73-.97l-4.3-1.24a1 1 0 00-1.03.3l-.9 1.08a1 1 0 01-1.14.3 8.97 8.97 0 01-5.47-5.47 1 1 0 01.3-1.14l1.08-.9a1 1 0 00.3-1.03L7.34 3.48a1 1 0 00-.97-.73H4.25A2 2 0 002.25 4.75v2z" />
+                  </svg>
+                  <span>{t.phoneNumber}</span>
+                </a>
+                <a href={`https://www.instagram.com/${t.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">
+                  <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect width="18" height="18" x="3" y="3" rx="4" ry="4" />
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                    <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
+                  </svg>
+                  <span>@{t.instagram}</span>
+                </a>
+                <a href={`https://t.me/${t.telegram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer">
+                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M22.5 2.4L1.5 10.2c-.9.35-.89 1.66.02 2l5.3 1.95 2.13 6.68c.27.85 1.38 1.08 1.95.39l2.86-3.47 5.4 4.13c.7.53 1.72.13 1.9-.76L24 3.4c.2-.98-.73-1.77-1.5-1z" />
+                  </svg>
+                  <span>@{t.telegram}</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-gray-800 my-8" />
+          
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <p className="text-gray-400 text-sm">
+              © 2024 Umar Perfume. Barcha huquqlar himoyalangan.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 } 

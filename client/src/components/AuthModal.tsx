@@ -169,14 +169,20 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
       const result = await verifyCode(code);
       
       if (result.success && result.user) {
+        // Kichik kechikish - user state yangilanishini kutish
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         // Ro'yxatdan o'tish rejimida foydalanuvchi ma'lumotlarini saqlash
+        const formattedPhone = `+998${phoneNumber}`;
         const profile = {
           uid: result.user.uid,
-          phoneNumber: result.user.phoneNumber || `+998${phoneNumber}`,
-          firstName,
-          lastName,
-          password
+          phoneNumber: formattedPhone,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          password: password
         };
+        
+        console.log('📝 Profil saqlanmoqda:', profile);
         
         const saved = await saveUserProfile(profile);
         

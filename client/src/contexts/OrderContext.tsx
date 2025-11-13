@@ -128,6 +128,11 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
   // Foydalanuvchi buyurtmalarini olish
   const getUserOrders = async (userId: string): Promise<Order[]> => {
     try {
+      if (!userId || userId.trim() === '') {
+        console.warn('⚠️ getUserOrders: userId bo\'sh yoki undefined');
+        return [];
+      }
+      
       const q = query(
         collection(db, "orders"),
         where("userId", "==", userId)

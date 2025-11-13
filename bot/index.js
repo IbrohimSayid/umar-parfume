@@ -136,42 +136,172 @@ function sendNewOrderNotification(order) {
         });
 }
 
+// Mahsulot soni 3 dan kam bo'lganda ogohlantirish funksiyasi
+function sendLowStockNotification(product) {
+    if (!ADMIN_CHAT_ID) {
+        console.log('⚠️ Admin chat ID o\'rnatilmagan!');
+        return;
+    }
+    
+    // Mahsulot o'lchamlarini tekshirish
+    const sizes = product.sizes || [];
+    const lowStockSizes = [];
+    
+    sizes.forEach(size => {
+        const stock = typeof size.stock === 'number' ? size.stock : parseInt(size.stock || 0);
+        if (stock < 3 && stock > 0) {
+            lowStockSizes.push({
+                size: size.size,
+                stock: stock
+            });
+        }
+    });
+    
+    // Agar umumiy soni 3 dan kam bo'lsa
+    const totalStock = product.stock || (product.sizes ? 
+        product.sizes.reduce((sum, s) => sum + (typeof s.stock === 'number' ? s.stock : parseInt(s.stock || 0)), 0) : 0);
+    
+    if (lowStockSizes.length > 0 || totalStock < 3) {
+        let message = `⚠️ *MAHSULOT SONI KAM!*\n\n`;
+        message += `🏷️ *Brand:* ${product.brand || 'N/A'}\n`;
+        message += `📦 *Mahsulot:* ${product.name || 'N/A'}\n\n`;
+        
+        if (lowStockSizes.length > 0) {
+            message += `📏 *O'lchamlar bo'yicha:*\n`;
+            lowStockSizes.forEach(item => {
+                message += `• ${item.size}: ${item.stock} dona qolgan\n`;
+            });
+        }
+        
+        if (totalStock < 3 && totalStock > 0) {
+            message += `\n📊 *Jami soni:* ${totalStock} dona qolgan\n`;
+        }
+        
+        message += `\n🔔 Zaxira qo'shish kerak!`;
+        
+        bot.sendMessage(ADMIN_CHAT_ID, message, { parse_mode: 'Markdown' })
+            .then(() => {
+                console.log(`✅ Mahsulot soni kam bo'lgani haqida xabar yuborildi: ${product.name}`);
+            })
+            .catch((error) => {
+                console.error('❌ Xabar yuborishda xatolik:', error);
+            });
+    }
+}
+
 // Firebase dan buyurtmalarni kuzatish
 let isListening = false;
 
+// Oxirgi buyurtma vaqtini saqlash
+let lastOrderTimestamp = null;
+let isInitialLoad = true;
+
 function startListeningToOrders() {
-    if (isListening) return;
+    if (isListening) {
+        console.log('⚠️ Buyurtmalar allaqachon kuzatilmoqda...');
+        return;
+    }
+    
+    if (!ADMIN_CHAT_ID) {
+        console.log('⚠️ Admin chat ID o\'rnatilmagan. /start buyrug\'ini bosing.');
+        return;
+    }
     
     console.log('👂 Buyurtmalarni kuzatish boshlandi...');
     
     const ordersRef = collection(db, 'orders');
     
     onSnapshot(ordersRef, (snapshot) => {
+        // Birinchi yuklashda barcha buyurtmalarni olish va oxirgi vaqtni saqlash
+        if (isInitialLoad) {
+            if (snapshot.docs.length > 0) {
+                const latestOrder = snapshot.docs
+                    .map(doc => {
+                        const data = doc.data();
+                        return {
+                            id: doc.id,
+                            createdAt: data.createdAt ? new Date(data.createdAt).getTime() : 0
+                        };
+                    })
+                    .sort((a, b) => b.createdAt - a.createdAt)[0];
+                
+                if (latestOrder && latestOrder.createdAt) {
+                    lastOrderTimestamp = latestOrder.createdAt;
+                    console.log('📅 Oxirgi buyurtma vaqti o\'rnatildi:', new Date(lastOrderTimestamp).toLocaleString('uz-UZ'));
+                } else {
+                    lastOrderTimestamp = Date.now();
+                }
+            } else {
+                lastOrderTimestamp = Date.now();
+            }
+            isInitialLoad = false;
+            console.log('✅ Birinchi yuklash yakunlandi. Endi yangi buyurtmalar kuzatiladi.');
+            return; // Birinchi yuklashda xabar yubormaslik
+        }
+        
+        // Keyingi o'zgarishlarni kuzatish
         snapshot.docChanges().forEach((change) => {
             if (change.type === 'added') {
                 const order = { id: change.doc.id, ...change.doc.data() };
-                console.log('🆕 Yangi buyurtma topildi:', order.id);
+                const orderTime = order.createdAt ? new Date(order.createdAt).getTime() : Date.now();
                 
-                // Faqat yangi buyurtmalarni yuborish (5 daqiqadan kamroq)
-                const orderTime = new Date(order.createdAt);
-                const now = new Date();
-                const diffMinutes = (now - orderTime) / (1000 * 60);
+                console.log('🆕 Yangi buyurtma topildi:', order.id, 'Vaqt:', new Date(orderTime).toLocaleString('uz-UZ'));
                 
-                if (diffMinutes < 5) {
+                // Faqat oxirgi vaqtdan keyin yaratilgan buyurtmalarni yuborish
+                if (orderTime > lastOrderTimestamp) {
+                    console.log('📤 Buyurtma xabari yuborilmoqda...');
                     sendNewOrderNotification(order);
+                    lastOrderTimestamp = Math.max(lastOrderTimestamp, orderTime);
+                } else {
+                    console.log('⏭️ Bu buyurtma eski, xabar yuborilmaydi.');
                 }
             }
         });
     }, (error) => {
         console.error('❌ Buyurtmalarni kuzatishda xatolik:', error);
+        isListening = false; // Xatolik bo'lsa, qayta urinish uchun flag'ni o'chirish
     });
     
     isListening = true;
 }
 
+// Firebase dan mahsulotlarni kuzatish
+let isProductsListening = false;
+
+function startListeningToProducts() {
+    if (isProductsListening) return;
+    
+    console.log('👂 Mahsulotlarni kuzatish boshlandi...');
+    
+    const productsRef = collection(db, 'products');
+    
+    onSnapshot(productsRef, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === 'modified') {
+                const product = { id: change.doc.id, ...change.doc.data() };
+                console.log('📦 Mahsulot yangilandi:', product.id);
+                
+                // Mahsulot sonini tekshirish
+                sendLowStockNotification(product);
+            } else if (change.type === 'added') {
+                const product = { id: change.doc.id, ...change.doc.data() };
+                console.log('📦 Yangi mahsulot qo\'shildi:', product.id);
+                
+                // Yangi mahsulot sonini ham tekshirish
+                sendLowStockNotification(product);
+            }
+        });
+    }, (error) => {
+        console.error('❌ Mahsulotlarni kuzatishda xatolik:', error);
+    });
+    
+    isProductsListening = true;
+}
+
 // Bot ishga tushgandan 5 sekund keyin kuzatishni boshlash
 setTimeout(() => {
     startListeningToOrders();
+    startListeningToProducts();
 }, 5000);
 
 // Xatoliklarni tutish

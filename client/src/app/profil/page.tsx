@@ -113,7 +113,11 @@ export default function ProfilePage() {
           
           <div className="text-center">
             <h2 className="text-xl font-semibold text-gray-900">{userProfile.firstName} {userProfile.lastName}</h2>
-            <p className="text-gray-600">{userProfile.phoneNumber}</p>
+            <p className="text-gray-600">
+              {userProfile.phoneNumber?.startsWith('+') 
+                ? userProfile.phoneNumber 
+                : `+${userProfile.phoneNumber || ''}`}
+            </p>
           </div>
         </div>
         

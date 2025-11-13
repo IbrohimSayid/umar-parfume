@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image'; // Import Image component
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOrder } from '../../contexts/OrderContext';
 import ConfirmModal from '../../components/ConfirmModal';
 import SuccessModal from '../../components/SuccessModal';
 import { db } from '../../lib/firebase';
@@ -38,7 +39,8 @@ interface StoredCartItem {
 
 export default function CartPage() {
   const { t } = useLanguage();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, userProfile } = useAuth();
+  const { createOrder } = useOrder();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [confirmModal, setConfirmModal] = useState({
@@ -275,23 +277,108 @@ export default function CartPage() {
     setSuccessModal({ ...successModal, isOpen: false });
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (!isAuthenticated()) {
       showConfirmModal(t.loginRequired, 'Buyurtma berish uchun avval tizimga kirishingiz kerak.', () => {}, 'info');
       return;
     }
+    
+    if (!user || !user.uid) {
+      showConfirmModal(
+        'Foydalanuvchi ma\'lumotlari yo\'q',
+        'Buyurtma berish uchun foydalanuvchi ma\'lumotlari kerak. Iltimos, qayta kirib keling.',
+        () => {},
+        'error'
+      );
+      return;
+    }
+    
+    if (!userProfile) {
+      showConfirmModal(
+        'Profil ma\'lumotlari yo\'q',
+        'Buyurtma berish uchun profil ma\'lumotlari kerak.',
+        () => {},
+        'error'
+      );
+      return;
+    }
+    
     if (cartItems.length === 0) {
       showConfirmModal('Savat bo\'sh', 'Savatda hech qanday mahsulot yo\'q.', () => {}, 'warning');
       return;
     }
 
-    // Bu yerda Checkout sahifasiga yo'naltirish yoki buyurtma berish logikasi bo'ladi
-    showConfirmModal('Buyurtmani rasmiylashtirish', 'Sizni buyurtmani rasmiylashtirish sahifasiga yo\'naltiramiz.', () => {
-      // router.push('/checkout'); // Agar checkout sahifasi mavjud bo'lsa
-      showSuccessModal('Muvaffaqiyatli', 'Buyurtmangiz rasmiylashtirildi. Tez orada siz bilan bog\'lanamiz!');
-      setCartItems([]);
-      saveCartToLocalStorage([]);
-    }, 'success');
+    const totalPrice = calculateTotal();
+    const itemsCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    
+    showConfirmModal(
+      'Buyurtmani tasdiqlang',
+      `${itemsCount} ta mahsulot\nJami: ${formatPrice(totalPrice)}\n\nBarcha buyurtmalarni bermoqchimisiz?`,
+      async () => {
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (const item of cartItems) {
+          try {
+            const orderData = {
+              userId: user.uid,
+              productId: item.productId,
+              productName: item.productName,
+              productImage: item.productImage,
+              size: item.size,
+              price: item.price,
+              quantity: item.quantity,
+              totalPrice: item.price * item.quantity,
+              customerInfo: {
+                firstName: userProfile.firstName || '',
+                lastName: userProfile.lastName || '',
+                phoneNumber: userProfile.phoneNumber || ''
+              }
+            };
+            
+            const success = await createOrder(orderData);
+            if (success) {
+              successCount++;
+            } else {
+              errorCount++;
+            }
+          } catch (error) {
+            console.error('❌ Buyurtma berishda xatolik:', error);
+            errorCount++;
+          }
+        }
+        
+        if (successCount > 0) {
+          // Muvaffaqiyatli buyurtmalar uchun savatni tozalash
+          const failedItems = cartItems.filter((item, index) => {
+            // Agar barcha buyurtmalar muvaffaqiyatli bo'lsa, savatni tozalash
+            return false;
+          });
+          
+          if (errorCount === 0) {
+            setCartItems([]);
+            saveCartToLocalStorage([]);
+            showSuccessModal(
+              'Buyurtma berildi!',
+              `${successCount} ta buyurtma muvaffaqiyatli berildi. Tez orada siz bilan bog'lanamiz!`
+            );
+          } else {
+            showSuccessModal(
+              'Qisman muvaffaqiyatli',
+              `${successCount} ta buyurtma berildi, ${errorCount} ta buyurtmada xatolik yuz berdi.`
+            );
+          }
+        } else {
+          showConfirmModal(
+            'Xatolik',
+            'Buyurtma berishda xatolik yuz berdi. Iltimos, qayta urinib ko\'ring.',
+            () => {},
+            'error'
+          );
+        }
+      },
+      'info'
+    );
   };
 
   if (isLoading) {

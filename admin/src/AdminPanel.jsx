@@ -87,8 +87,12 @@ const AdminPanel = () => {
         description: '',
         category: 'erkak',
         fragranceNotes: [],
-        sizes: []
+        sizes: [],
+        image: '' // Asosiy mahsulot rasmi
     });
+    const [productImageFile, setProductImageFile] = useState(null);
+    const [productImagePreview, setProductImagePreview] = useState('');
+    const [showSizesDropdown, setShowSizesDropdown] = useState(false);
     
     // Filter sozlamalari
     const [availableNotes, setAvailableNotes] = useState(DEFAULT_NOTES);
@@ -128,10 +132,25 @@ const AdminPanel = () => {
         lastName: '',
         phone: '',
         password: '',
-        role: 'admin'
+        role: 'admin',
+        permissions: {
+            canAddProducts: false,
+            canEditProducts: false,
+            canDeleteProducts: false,
+            canAddAdmins: false,
+            canEditAdmins: false,
+            canDeleteAdmins: false,
+            canDeleteOrders: false,
+            canViewOrders: true
+        }
     });
     const [editingAdmin, setEditingAdmin] = useState(null);
     const [isEditAdminMode, setIsEditAdminMode] = useState(false);
+
+    // Orders selection and deletion states
+    const [selectedOrders, setSelectedOrders] = useState([]);
+    const [selectAllOrders, setSelectAllOrders] = useState(false);
+    const [orderTimeFilter, setOrderTimeFilter] = useState('all'); // 'all', '1week', '1month', 'older'
 
     // Modal functions
     const showConfirmModal = (title, message, onConfirm, type = 'info') => {
@@ -746,27 +765,58 @@ const AdminPanel = () => {
         showSuccessModal('Muvaffaqiyat!', 'Admin ma\'lumotlari muvaffaqiyatli yangilandi!');
     };
 
-    const toggleProductSize = (sizeName) => {
-        const exists = newProduct.sizes.some(size => size.size === sizeName);
-        if (exists) {
-            const filtered = newProduct.sizes.filter(size => size.size !== sizeName);
-            setNewProduct({ ...newProduct, sizes: filtered });
-        } else {
-            setNewProduct({
-                ...newProduct,
-                sizes: [
-                    ...newProduct.sizes,
-                    { size: sizeName, price: '', stock: '' }
-                ]
-            });
+    // O'lcham qo'shish funksiyasi
+    const addProductSize = () => {
+        const newSize = {
+            size: '',
+            price: '',
+            stock: '',
+            imageName: '' // O'lcham uchun rasm
+        };
+        setNewProduct({
+            ...newProduct,
+            sizes: [...newProduct.sizes, newSize]
+        });
+    };
+
+    // O'lchamni yangilash
+    const updateProductSize = (index, field, value) => {
+        const updatedSizes = newProduct.sizes.map((size, idx) =>
+            idx === index ? { ...size, [field]: value } : size
+        );
+        setNewProduct({ ...newProduct, sizes: updatedSizes });
+    };
+
+    // O'lchamni o'chirish
+    const removeProductSize = (index) => {
+        const updatedSizes = newProduct.sizes.filter((_, idx) => idx !== index);
+        setNewProduct({ ...newProduct, sizes: updatedSizes });
+    };
+
+    // Asosiy mahsulot rasmini yuklash
+    const handleProductImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setProductImageFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setProductImagePreview(reader.result);
+                setNewProduct({ ...newProduct, image: reader.result });
+            };
+            reader.readAsDataURL(file);
         }
     };
 
-    const updateSelectedSize = (sizeName, field, value) => {
-        const updatedSizes = newProduct.sizes.map(size =>
-            size.size === sizeName ? { ...size, [field]: value } : size
-        );
-        setNewProduct({ ...newProduct, sizes: updatedSizes });
+    // O'lcham rasmini yuklash
+    const handleSizeImageChange = (index, e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                updateProductSize(index, 'imageName', reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     // Nota qo'shish/o'chirish
@@ -867,7 +917,7 @@ const AdminPanel = () => {
                 price: newProduct.price,
                 stock: totalStock,
                 status: totalStock > 0 ? 'mavjud' : 'mavjud emas',
-                image: `https://images.unsplash.com/photo-1541643600914-78b084683601?w=300&h=400&fit=crop&random=${Date.now()}`,
+                image: newProduct.image || `https://images.unsplash.com/photo-1541643600914-78b084683601?w=300&h=400&fit=crop&random=${Date.now()}`,
                 description: newProduct.description,
                 category: newProduct.category,
                 fragrance_notes: newProduct.fragranceNotes,
@@ -894,8 +944,12 @@ const AdminPanel = () => {
                 description: '',
                 category: 'erkak',
                 fragranceNotes: [],
-                sizes: []
+                sizes: [],
+                image: ''
             });
+            setProductImageFile(null);
+            setProductImagePreview('');
+            setShowSizesDropdown(false);
             setShowProductModal(false);
             showSuccessModal('Muvaffaqiyat!', 'Mahsulot muvaffaqiyatli qo\'shildi!');
         } catch (error) {
@@ -1016,7 +1070,7 @@ const AdminPanel = () => {
                 price: newProduct.price,
                 stock: totalStock, // O'lchamlar sonidan hisoblangan
                 status: totalStock > 0 ? 'mavjud' : 'mavjud emas',
-                image: editingProduct.image, // Eski rasmni saqlash
+                image: newProduct.image || editingProduct.image, // Yangi rasm yoki eski rasmni saqlash
                 description: newProduct.description,
                 category: newProduct.category,
                 fragrance_notes: newProduct.fragranceNotes,
@@ -1069,8 +1123,12 @@ const AdminPanel = () => {
             description: '',
             category: 'erkak',
             fragranceNotes: [],
-            sizes: []
+            sizes: [],
+            image: ''
         });
+        setProductImageFile(null);
+        setProductImagePreview('');
+        setShowSizesDropdown(false);
     };
 
     // Foydalanuvchini o'chirish
@@ -1159,6 +1217,357 @@ const AdminPanel = () => {
                 }
             },
             'warning'
+        );
+    };
+
+    // Admin amallarini log qilish funksiyasi
+    const logAdminAction = async (action, details, targetType, targetId = null) => {
+        try {
+            const logData = {
+                adminId: adminInfo.id,
+                adminName: `${adminInfo.firstName} ${adminInfo.lastName}`,
+                action: action,
+                details: details,
+                targetType: targetType, // 'product', 'user', 'admin', 'order'
+                targetId: targetId,
+                timestamp: new Date().toISOString(),
+                ip: 'N/A', // Keyinroq IP ni olish mumkin
+                userAgent: navigator.userAgent || 'N/A'
+            };
+            
+            await addDoc(collection(db, "admin_logs"), logData);
+            console.log('✅ Admin amali log qilindi:', logData);
+        } catch (error) {
+            console.error('❌ Admin amalini log qilishda xatolik:', error);
+        }
+    };
+
+    // Admin management functions
+    const fetchAdmins = async () => {
+        try {
+            const querySnapshot = await getDocs(collection(db, "admins"));
+            const adminsData = [];
+            querySnapshot.forEach((doc) => {
+                adminsData.push({ id: doc.id, ...doc.data() });
+            });
+            setAdmins(adminsData);
+            console.log('✅ Adminlar Firestore dan olindi:', adminsData);
+        } catch (error) {
+            console.error('❌ Adminlarni olishda xatolik:', error);
+        }
+    };
+
+    const closeAddAdminModal = () => {
+        setShowAddAdminModal(false);
+        setIsEditAdminMode(false);
+        setEditingAdmin(null);
+        setNewAdmin({
+            firstName: '',
+            lastName: '',
+            phone: '',
+            password: '',
+            role: 'admin',
+            permissions: {
+                canAddProducts: false,
+                canEditProducts: false,
+                canDeleteProducts: false,
+                canAddAdmins: false,
+                canEditAdmins: false,
+                canDeleteAdmins: false,
+                canDeleteOrders: false,
+                canViewOrders: true
+            }
+        });
+    };
+
+    const addAdmin = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+        
+        try {
+            const adminData = {
+                ...newAdmin,
+                id: `admin_${Date.now()}`,
+                status: 'active',
+                createdAt: new Date().toISOString(),
+                createdBy: adminInfo.id
+            };
+            
+            const docRef = await addDoc(collection(db, "admins"), adminData);
+            setAdmins([...admins, { id: docRef.id, ...adminData }]);
+            
+            // Admin amalini log qilish
+            await logAdminAction(
+                'CREATE_ADMIN',
+                `Yangi admin qo'shildi: ${adminData.firstName} ${adminData.lastName} (${adminData.phone})`,
+                'admin',
+                docRef.id
+            );
+            
+            closeAddAdminModal();
+            showSuccessModal('Muvaffaqiyat!', 'Yangi admin muvaffaqiyatli qo\'shildi!');
+        } catch (error) {
+            console.error('❌ Admin qo\'shishda xatolik:', error);
+            showConfirmModal(
+                'Xatolik!',
+                'Admin qo\'shishda xatolik yuz berdi: ' + error.message,
+                () => {},
+                'error'
+            );
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const openEditAdminModal = (admin) => {
+        setEditingAdmin(admin);
+        setIsEditAdminMode(true);
+        setNewAdmin({
+            firstName: admin.firstName || '',
+            lastName: admin.lastName || '',
+            phone: admin.phone || '',
+            password: '', // Parolni bo'sh qoldirish
+            role: admin.role || 'admin',
+            permissions: admin.permissions || {
+                canAddProducts: false,
+                canEditProducts: false,
+                canDeleteProducts: false,
+                canAddAdmins: false,
+                canEditAdmins: false,
+                canDeleteAdmins: false,
+                canDeleteOrders: false,
+                canViewOrders: true
+            }
+        });
+        setShowAddAdminModal(true);
+    };
+
+    const updateAdmin = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+        
+        try {
+            const updatedData = {
+                firstName: newAdmin.firstName,
+                lastName: newAdmin.lastName,
+                phone: newAdmin.phone,
+                role: newAdmin.role,
+                permissions: newAdmin.permissions,
+                updatedAt: new Date().toISOString(),
+                updatedBy: adminInfo.id
+            };
+            
+            // Agar parol kiritilgan bo'lsa, uni ham yangilash
+            if (newAdmin.password.trim()) {
+                updatedData.password = newAdmin.password;
+            }
+            
+            const adminRef = doc(db, "admins", editingAdmin.id);
+            await setDoc(adminRef, updatedData, { merge: true });
+            
+            // Admin amalini log qilish
+            await logAdminAction(
+                'UPDATE_ADMIN',
+                `Admin yangilandi: ${updatedData.firstName} ${updatedData.lastName} (${updatedData.phone})`,
+                'admin',
+                editingAdmin.id
+            );
+            
+            setAdmins(admins.map(admin => 
+                admin.id === editingAdmin.id ? { ...admin, ...updatedData } : admin
+            ));
+            
+            closeAddAdminModal();
+            showSuccessModal('Muvaffaqiyat!', 'Admin ma\'lumotlari muvaffaqiyatli yangilandi!');
+        } catch (error) {
+            console.error('❌ Adminni yangilashda xatolik:', error);
+            showConfirmModal(
+                'Xatolik!',
+                'Adminni yangilashda xatolik yuz berdi: ' + error.message,
+                () => {},
+                'error'
+            );
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const toggleAdminBlock = async (adminId, currentStatus) => {
+        const newStatus = currentStatus === 'blocked' ? 'active' : 'blocked';
+        const action = newStatus === 'blocked' ? 'bloklash' : 'faollashtirish';
+        
+        showConfirmModal(
+            `Adminni ${action}`,
+            `Bu adminni ${action}moqchimisiz?`,
+            async () => {
+                setIsLoading(true);
+                try {
+                    // Admin ma'lumotlarini olish (log uchun)
+                    const adminToUpdate = admins.find(a => a.id === adminId);
+                    
+                    const adminRef = doc(db, "admins", adminId);
+                    await setDoc(adminRef, { 
+                        status: newStatus,
+                        updatedAt: new Date().toISOString(),
+                        updatedBy: adminInfo.id
+                    }, { merge: true });
+                    
+                    // Admin amalini log qilish
+                    await logAdminAction(
+                        newStatus === 'blocked' ? 'BLOCK_ADMIN' : 'UNBLOCK_ADMIN',
+                        `Admin ${action}ildi: ${adminToUpdate?.firstName || 'Noma\'lum'} ${adminToUpdate?.lastName || ''} (${adminToUpdate?.phone || 'Noma\'lum'})`,
+                        'admin',
+                        adminId
+                    );
+                    
+                    setAdmins(admins.map(admin => 
+                        admin.id === adminId ? { ...admin, status: newStatus } : admin
+                    ));
+                    
+                    showSuccessModal('Muvaffaqiyat!', `Admin muvaffaqiyatli ${action}ildi`);
+                } catch (error) {
+                    console.error(`❌ Adminni ${action}ishda xatolik:`, error);
+                    showConfirmModal(
+                        'Xatolik!',
+                        `Adminni ${action}ishda xatolik yuz berdi`,
+                        () => {},
+                        'error'
+                    );
+                } finally {
+                    setIsLoading(false);
+                }
+            },
+            'warning'
+        );
+    };
+
+    const deleteAdmin = async (adminId) => {
+        showConfirmModal(
+            'Adminni o\'chirish',
+            'Bu adminni o\'chirmoqchimisiz? Bu amal qaytarib bo\'lmaydi!',
+            async () => {
+                setIsLoading(true);
+                try {
+                    // Admin ma'lumotlarini olish (log uchun)
+                    const adminToDelete = admins.find(a => a.id === adminId);
+                    
+                    await deleteDoc(doc(db, "admins", adminId));
+                    setAdmins(admins.filter(admin => admin.id !== adminId));
+                    
+                    // Admin amalini log qilish
+                    await logAdminAction(
+                        'DELETE_ADMIN',
+                        `Admin o'chirildi: ${adminToDelete?.firstName || 'Noma\'lum'} ${adminToDelete?.lastName || ''} (${adminToDelete?.phone || 'Noma\'lum'})`,
+                        'admin',
+                        adminId
+                    );
+                    
+                    showSuccessModal('Muvaffaqiyat!', 'Admin muvaffaqiyatli o\'chirildi');
+                } catch (error) {
+                    console.error('❌ Adminni o\'chirishda xatolik:', error);
+                    showConfirmModal(
+                        'Xatolik!',
+                        'Adminni o\'chirishda xatolik yuz berdi',
+                        () => {},
+                        'error'
+                    );
+                } finally {
+                    setIsLoading(false);
+                }
+            },
+            'error'
+        );
+    };
+
+    // Orders selection and deletion functions
+    const handleOrderSelect = (orderId) => {
+        setSelectedOrders(prev => 
+            prev.includes(orderId) 
+                ? prev.filter(id => id !== orderId)
+                : [...prev, orderId]
+        );
+    };
+
+    const handleSelectAllOrders = () => {
+        if (selectAllOrders) {
+            setSelectedOrders([]);
+            setSelectAllOrders(false);
+        } else {
+            const filteredOrders = getFilteredOrders();
+            setSelectedOrders(filteredOrders.map(order => order.id));
+            setSelectAllOrders(true);
+        }
+    };
+
+    const getFilteredOrders = () => {
+        const now = new Date();
+        let filtered = [...orders];
+
+        if (orderTimeFilter === '1week') {
+            const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            filtered = filtered.filter(order => {
+                const orderDate = new Date(order.createdAt || order.timestamp || order.date);
+                return orderDate >= oneWeekAgo;
+            });
+        } else if (orderTimeFilter === '1month') {
+            const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            filtered = filtered.filter(order => {
+                const orderDate = new Date(order.createdAt || order.timestamp || order.date);
+                return orderDate >= oneMonthAgo;
+            });
+        } else if (orderTimeFilter === 'older') {
+            const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            filtered = filtered.filter(order => {
+                const orderDate = new Date(order.createdAt || order.timestamp || order.date);
+                return orderDate < oneMonthAgo;
+            });
+        }
+
+        return filtered;
+    };
+
+    const deleteSelectedOrders = async () => {
+        if (selectedOrders.length === 0) {
+            showConfirmModal('Diqqat!', 'O\'chirish uchun hech bo\'lmaganda bitta buyurtmani tanlang', () => {}, 'warning');
+            return;
+        }
+
+        showConfirmModal(
+            'Buyurtmalarni o\'chirish',
+            `${selectedOrders.length} ta buyurtmani o\'chirmoqchimisiz? Bu amal qaytarib bo\'lmaydi!`,
+            async () => {
+                setIsLoading(true);
+                try {
+                    const deletePromises = selectedOrders.map(orderId => 
+                        deleteDoc(doc(db, "orders", orderId))
+                    );
+                    await Promise.all(deletePromises);
+                    
+                    setOrders(orders.filter(order => !selectedOrders.includes(order.id)));
+                    setSelectedOrders([]);
+                    setSelectAllOrders(false);
+                    
+                    await logAdminAction(
+                        'DELETE_ORDERS',
+                        `${selectedOrders.length} ta buyurtma o'chirildi`,
+                        'order',
+                        null
+                    );
+                    
+                    showSuccessModal('Muvaffaqiyat!', `${selectedOrders.length} ta buyurtma muvaffaqiyatli o'chirildi`);
+                } catch (error) {
+                    console.error('❌ Buyurtmalarni o\'chirishda xatolik:', error);
+                    showConfirmModal(
+                        'Xatolik!',
+                        'Buyurtmalarni o\'chirishda xatolik yuz berdi',
+                        () => {},
+                        'error'
+                    );
+                } finally {
+                    setIsLoading(false);
+                }
+            },
+            'error'
         );
     };
 
@@ -1427,94 +1836,143 @@ const AdminPanel = () => {
                 </div>
             </div>
             <div className="p-8">
-                            {orders.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mijoz</th>
-                                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefon</th>
-                                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mahsulot</th>
-                                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Narx</th>
-                                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amallar</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                            {orders.map(order => (
-                                                <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                        {order.customerInfo ? `${order.customerInfo.firstName} ${order.customerInfo.lastName}` : order.customerName || 'N/A'}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                        {order.customerInfo ? order.customerInfo.phoneNumber : order.phone || 'N/A'}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                        <div>
-                                                            <div className="font-medium">{order.productName || order.product || 'N/A'}</div>
-                                                            {order.size && <div className="text-gray-500 text-xs">O'lcham: {order.size}</div>}
-                                                            {order.quantity && <div className="text-gray-500 text-xs">Miqdor: {order.quantity}</div>}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                                                        {order.totalPrice ? `${order.totalPrice.toLocaleString()} so'm` : `${order.price || 0} so'm`}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                                                            {getStatusText(order.status)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                        <div className="flex space-x-2">
-                                                            {order.status === 'pending' && (
-                                                                <>
-                                                                    <button
-                                                                        onClick={() => showConfirmModal(
-                                                                            'Buyurtmani qabul qilish',
-                                                                            'Ushbu buyurtmani qabul qilmoqchimisiz?',
-                                                                            () => updateOrderStatus(order.id, 'confirmed'),
-                                                                            'info'
-                                                                        )}
-                                                                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
-                                                                    >
-                                                                        Qabul qilish
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => showConfirmModal(
-                                                                            'Buyurtmani rad etish',
-                                                                            'Ushbu buyurtmani rad etmoqchimisiz?',
-                                                                            () => updateOrderStatus(order.id, 'cancelled'),
-                                                                            'error'
-                                                                        )}
-                                                                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
-                                                                    >
-                                                                        Rad etish
-                                                                    </button>
-                                                                </>
+                {/* Filters and Actions */}
+                <div className="mb-6 flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-gray-700">Vaqt filtri:</label>
+                        <select
+                            value={orderTimeFilter}
+                            onChange={(e) => {
+                                setOrderTimeFilter(e.target.value);
+                                setSelectedOrders([]);
+                                setSelectAllOrders(false);
+                            }}
+                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        >
+                            <option value="all">Barchasi</option>
+                            <option value="1week">So'nggi 1 hafta</option>
+                            <option value="1month">So'nggi 1 oy</option>
+                            <option value="older">1 oydan oldingi</option>
+                        </select>
+                    </div>
+                    {selectedOrders.length > 0 && (
+                        <button
+                            onClick={deleteSelectedOrders}
+                            disabled={isLoading}
+                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center"
+                        >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            {selectedOrders.length} ta buyurtmani o'chirish
+                        </button>
+                    )}
+                </div>
+                
+                {orders.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectAllOrders}
+                                            onChange={handleSelectAllOrders}
+                                            className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                                        />
+                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mijoz</th>
+                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefon</th>
+                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mahsulot</th>
+                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Narx</th>
+                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amallar</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {getFilteredOrders().map(order => (
+                                    <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${selectedOrders.includes(order.id) ? 'bg-yellow-50' : ''}`}>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedOrders.includes(order.id)}
+                                                onChange={() => handleOrderSelect(order.id)}
+                                                className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                                            />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {order.customerInfo ? `${order.customerInfo.firstName} ${order.customerInfo.lastName}` : order.customerName || 'N/A'}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {order.customerInfo ? order.customerInfo.phoneNumber : order.phone || 'N/A'}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <div>
+                                                <div className="font-medium">{order.productName || order.product || 'N/A'}</div>
+                                                {order.size && <div className="text-gray-500 text-xs">O'lcham: {order.size}</div>}
+                                                {order.quantity && <div className="text-gray-500 text-xs">Miqdor: {order.quantity}</div>}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                                            {order.totalPrice ? `${order.totalPrice.toLocaleString()} so'm` : `${order.price || 0} so'm`}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                                                {getStatusText(order.status)}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <div className="flex space-x-2">
+                                                {order.status === 'pending' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => showConfirmModal(
+                                                                'Buyurtmani qabul qilish',
+                                                                'Ushbu buyurtmani qabul qilmoqchimisiz?',
+                                                                () => updateOrderStatus(order.id, 'confirmed'),
+                                                                'info'
                                                             )}
-                                                            {order.status === 'confirmed' && (
-                                                                <button
-                                                                    onClick={() => showConfirmModal(
-                                                                        'Buyurtmani yetkazish',
-                                                                        'Ushbu buyurtma yetkazilganini tasdiqlaysizmi?',
-                                                                        () => updateOrderStatus(order.id, 'delivered'),
-                                                                        'success'
-                                                                    )}
-                                                                    className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
-                                                                >
-                                                                    Yetkazildi
-                                                                </button>
+                                                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                                                        >
+                                                            Qabul qilish
+                                                        </button>
+                                                        <button
+                                                            onClick={() => showConfirmModal(
+                                                                'Buyurtmani rad etish',
+                                                                'Ushbu buyurtmani rad etmoqchimisiz?',
+                                                                () => updateOrderStatus(order.id, 'cancelled'),
+                                                                'error'
                                                             )}
-                                                            {(order.status === 'delivered' || order.status === 'cancelled') && (
-                                                                <span className="text-gray-500 text-xs">Yakunlangan</span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                                                        >
+                                                            Rad etish
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {order.status === 'confirmed' && (
+                                                    <button
+                                                        onClick={() => showConfirmModal(
+                                                            'Buyurtmani yetkazish',
+                                                            'Ushbu buyurtma yetkazilganini tasdiqlaysizmi?',
+                                                            () => updateOrderStatus(order.id, 'delivered'),
+                                                            'success'
+                                                        )}
+                                                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                                                    >
+                                                        Yetkazildi
+                                                    </button>
+                                                )}
+                                                {(order.status === 'delivered' || order.status === 'cancelled') && (
+                                                    <span className="text-gray-500 text-xs">Yakunlangan</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                             ) : (
                 <div className="text-center py-12">
                     <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -2072,12 +2530,23 @@ const AdminPanel = () => {
                     <form onSubmit={isEditMode ? handleProductUpdate : handleProductSubmit} className="p-6 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-gray-700 font-semibold mb-2">Mahsulot rasmi</label>
+                                <label className="block text-gray-700 font-semibold mb-2">Mahsulot rasmi *</label>
                                 <input 
                                     type="file" 
                                     accept="image/*"
+                                    onChange={handleProductImageChange}
                                     className="w-full border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-yellow-400 transition-colors cursor-pointer"
+                                    required={!isEditMode}
                                 />
+                                {productImagePreview && (
+                                    <div className="mt-3">
+                                        <img 
+                                            src={productImagePreview} 
+                                            alt="Preview" 
+                                            className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
+                                        />
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-semibold mb-2">Mahsulot nomi *</label>
@@ -2235,142 +2704,98 @@ const AdminPanel = () => {
                                 </h4>
                                 <button
                                     type="button"
-                                    onClick={() => setShowSizeSettings(!showSizeSettings)}
-                                    className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                                    onClick={addProductSize}
+                                    className="flex items-center px-4 py-2.5 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-yellow-500 hover:to-yellow-600 transition-all duration-200 transform hover:scale-105"
                                 >
-                                    {showSizeSettings ? 'Yashirish' : 'Sozlamalar'}
+                                    <svg className="w-5 h-5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    O&apos;lcham qo&apos;shish
                                 </button>
                             </div>
 
-                            {showSizeSettings && (
-                                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-5 space-y-4">
-                                    <div>
-                                        <h5 className="font-medium text-gray-900 mb-2">O&apos;lcham sozlamalari</h5>
-                                        <div className="flex flex-col sm:flex-row gap-2">
-                                            <input
-                                                type="text"
-                                                value={newSizeValue}
-                                                onChange={(e) => setNewSizeValue(e.target.value)}
-                                                className="flex-1 border-2 border-gray-200 rounded-lg p-2 focus:border-indigo-400 focus:ring-0 transition-colors"
-                                                placeholder="Yangi o'lcham (masalan: 5ml)"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={handleAddSize}
-                                                className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
-                                            >
-                                                Qo&apos;shish
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                                        {availableSizes.map((size) => (
-                                            <div key={size} className="bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between">
-                                                {editingSize === size ? (
-                                                    <>
-                                                        <input
-                                                            type="text"
-                                                            value={editingSizeValue}
-                                                            onChange={(e) => setEditingSizeValue(e.target.value)}
-                                                            className="flex-1 border-2 border-indigo-200 rounded-lg p-2 focus:border-indigo-400 focus:ring-0 transition-colors mr-3"
-                                                        />
-                                                        <div className="flex items-center space-x-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={handleSaveSizeEdit}
-                                                                className="px-3 py-1 bg-indigo-500 text-white rounded-lg text-sm"
-                                                            >
-                                                                Saqlash
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={cancelSizeEdit}
-                                                                className="px-3 py-1 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-100"
-                                                            >
-                                                                Bekor qilish
-                                                            </button>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <span className="text-sm font-medium text-gray-800">{size}</span>
-                                                        <div className="flex items-center space-x-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => startEditSize(size)}
-                                                                className="text-indigo-500 hover:text-indigo-600 text-sm"
-                                                            >
-                                                                Tahrirlash
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveSize(size)}
-                                                                className="text-red-500 hover:text-red-600 text-sm"
-                                                            >
-                                                                O&apos;chirish
-                                                            </button>
-                                                        </div>
-                                                    </>
-                                                )}
+                            {/* O'lchamlar ro'yxati - inline form */}
+                            <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
+                                {newProduct.sizes.length > 0 ? (
+                                    newProduct.sizes.map((size, index) => (
+                                        <div key={index} className="bg-gradient-to-br from-white via-gray-50 to-white border-2 border-gray-200 rounded-xl p-4 shadow-md hover:shadow-lg hover:border-yellow-300 transition-all duration-300">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <span className="text-xs font-bold text-white bg-gradient-to-r from-yellow-400 to-yellow-500 px-3 py-1 rounded-full shadow-sm">#{index + 1}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeProductSize(index)}
+                                                    className="text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                                                >
+                                                    ✕ O&apos;chirish
+                                                </button>
                                             </div>
-                                        ))}
-                                        {availableSizes.length === 0 && (
-                                            <div className="text-sm text-gray-600">
-                                                O&apos;lchamlar ro&apos;yxati bo&apos;sh. Yangi o&apos;lcham qo&apos;shing.
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="space-y-3">
-                                {availableSizes.map((sizeName) => {
-                                    const selected = newProduct.sizes.find(size => size.size === sizeName);
-                                    return (
-                                        <div
-                                            key={sizeName}
-                                            className={`rounded-xl border-2 p-4 transition-colors ${selected ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 bg-white'}`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <label className="flex items-center space-x-3 cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={!!selected}
-                                                        onChange={() => toggleProductSize(sizeName)}
-                                                        className="h-5 w-5 text-yellow-500 focus:ring-yellow-400"
-                                                    />
-                                                    <span className="text-sm font-semibold text-gray-800">{sizeName}</span>
-                                                </label>
-                                                {selected && (
-                                                    <span className="text-xs text-gray-500">
-                                                        {selected.stock ? `${selected.stock} dona` : 'Soni kiritilmagan'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {selected && (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">O&apos;lcham</label>
                                                     <input
                                                         type="text"
-                                                        value={selected.price}
-                                                        onChange={(e) => updateSelectedSize(sizeName, 'price', e.target.value)}
-                                                        className="border-2 border-gray-200 rounded-lg p-2 focus:border-yellow-400 focus:ring-0 transition-colors"
-                                                        placeholder="Narx"
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        value={selected.stock}
-                                                        onChange={(e) => updateSelectedSize(sizeName, 'stock', e.target.value)}
-                                                        className="border-2 border-gray-200 rounded-lg p-2 focus:border-yellow-400 focus:ring-0 transition-colors"
-                                                        placeholder="Soni"
+                                                        value={size.size || ''}
+                                                        onChange={(e) => updateProductSize(index, 'size', e.target.value)}
+                                                        className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm bg-white shadow-sm focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-30 transition-all duration-200 hover:border-gray-300"
+                                                        placeholder="5ml, 10ml..."
+                                                        required
                                                     />
                                                 </div>
-                                            )}
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Narx</label>
+                                                    <input
+                                                        type="text"
+                                                        value={size.price || ''}
+                                                        onChange={(e) => updateProductSize(index, 'price', e.target.value)}
+                                                        className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm bg-white shadow-sm focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-30 transition-all duration-200 hover:border-gray-300"
+                                                        placeholder="130000"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Soni</label>
+                                                    <input
+                                                        type="text"
+                                                        value={size.stock || ''}
+                                                        onChange={(e) => updateProductSize(index, 'stock', e.target.value)}
+                                                        className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm bg-white shadow-sm focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-30 transition-all duration-200 hover:border-gray-300"
+                                                        placeholder="5"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Rasm</label>
+                                                    <div className="flex items-center space-x-2">
+                                                        <label className="flex-1 cursor-pointer">
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                onChange={(e) => handleSizeImageChange(index, e)}
+                                                                className="hidden"
+                                                            />
+                                                            <div className="border-2 border-dashed border-gray-300 rounded-lg px-3 py-2 text-xs bg-gradient-to-r from-gray-50 to-white hover:border-yellow-400 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-yellow-100 transition-all duration-200 shadow-sm hover:shadow-md text-center font-medium text-gray-600">
+                                                                📷 Rasm tanlash
+                                                            </div>
+                                                        </label>
+                                                        {size.imageName && (
+                                                            <div className="relative">
+                                                                <img 
+                                                                    src={size.imageName} 
+                                                                    alt={`Size ${index + 1}`} 
+                                                                    className="w-10 h-10 object-cover rounded-lg border-2 border-gray-300 shadow-md"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                    );
-                                })}
-                                {availableSizes.length === 0 && (
-                                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-xl text-sm">
-                                        Avval o&apos;lcham sozlamalariga kamida bitta o&apos;lcham qo&apos;shing.
+                                    ))
+                                ) : (
+                                    <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 border-2 border-yellow-200 text-yellow-800 px-4 py-4 rounded-xl text-sm text-center shadow-sm">
+                                        <p className="font-medium">Hozircha o&apos;lcham qo&apos;shilmagan.</p>
+                                        <p className="text-xs mt-1">Yuqoridagi &quot;O&apos;lcham qo&apos;shish&quot; tugmasini bosing.</p>
                                     </div>
                                 )}
                             </div>
@@ -2484,8 +2909,8 @@ const AdminPanel = () => {
                     className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
                     onClick={(e) => e.target === e.currentTarget && closeAddAdminModal()}
                 >
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-                        <div className="p-6 border-b border-gray-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+                        <div className="p-6 border-b border-gray-200 flex-shrink-0">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-xl font-bold text-gray-900 flex items-center">
                                     <svg className="w-6 h-6 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2502,7 +2927,7 @@ const AdminPanel = () => {
                             </div>
                         </div>
                         
-                        <form onSubmit={isEditAdminMode ? updateAdmin : addAdmin} className="p-6 space-y-4">
+                        <form onSubmit={isEditAdminMode ? updateAdmin : addAdmin} className="p-6 space-y-4 overflow-y-auto flex-1">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-gray-700 font-semibold mb-2">Ism *</label>
@@ -2563,14 +2988,123 @@ const AdminPanel = () => {
                                 <label className="block text-gray-700 font-semibold mb-2">Rol *</label>
                                 <select
                                     value={newAdmin.role}
-                                    onChange={(e) => setNewAdmin({...newAdmin, role: e.target.value})}
+                                    onChange={(e) => {
+                                        const role = e.target.value;
+                                        const isSuperAdmin = role === 'super_admin';
+                                        setNewAdmin({
+                                            ...newAdmin, 
+                                            role,
+                                            permissions: isSuperAdmin ? {
+                                                canAddProducts: true,
+                                                canEditProducts: true,
+                                                canDeleteProducts: true,
+                                                canAddAdmins: true,
+                                                canEditAdmins: true,
+                                                canDeleteAdmins: true,
+                                                canDeleteOrders: true,
+                                                canViewOrders: true
+                                            } : newAdmin.permissions
+                                        });
+                                    }}
                                     className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-indigo-400 focus:ring-0 transition-colors"
                                     required
                                 >
                                     <option value="admin">Admin</option>
-                                    <option value="super_admin">Super Admin</option>
+                                    <option value="super_admin">Super Admin (Barcha ruxsatlar)</option>
                                 </select>
                             </div>
+                            
+                            {newAdmin.role !== 'super_admin' && (
+                                <div className="border-2 border-gray-200 rounded-xl p-4 space-y-3">
+                                    <label className="block text-gray-700 font-semibold mb-2">Ruxsatlar:</label>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center space-x-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={newAdmin.permissions.canAddProducts}
+                                                onChange={(e) => setNewAdmin({
+                                                    ...newAdmin,
+                                                    permissions: {...newAdmin.permissions, canAddProducts: e.target.checked}
+                                                })}
+                                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm text-gray-700">Mahsulot qo'shish</span>
+                                        </label>
+                                        <label className="flex items-center space-x-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={newAdmin.permissions.canEditProducts}
+                                                onChange={(e) => setNewAdmin({
+                                                    ...newAdmin,
+                                                    permissions: {...newAdmin.permissions, canEditProducts: e.target.checked}
+                                                })}
+                                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm text-gray-700">Mahsulot tahrirlash</span>
+                                        </label>
+                                        <label className="flex items-center space-x-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={newAdmin.permissions.canDeleteProducts}
+                                                onChange={(e) => setNewAdmin({
+                                                    ...newAdmin,
+                                                    permissions: {...newAdmin.permissions, canDeleteProducts: e.target.checked}
+                                                })}
+                                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm text-gray-700">Mahsulot o'chirish</span>
+                                        </label>
+                                        <label className="flex items-center space-x-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={newAdmin.permissions.canAddAdmins}
+                                                onChange={(e) => setNewAdmin({
+                                                    ...newAdmin,
+                                                    permissions: {...newAdmin.permissions, canAddAdmins: e.target.checked}
+                                                })}
+                                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm text-gray-700">Admin qo'shish</span>
+                                        </label>
+                                        <label className="flex items-center space-x-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={newAdmin.permissions.canEditAdmins}
+                                                onChange={(e) => setNewAdmin({
+                                                    ...newAdmin,
+                                                    permissions: {...newAdmin.permissions, canEditAdmins: e.target.checked}
+                                                })}
+                                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm text-gray-700">Admin tahrirlash</span>
+                                        </label>
+                                        <label className="flex items-center space-x-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={newAdmin.permissions.canDeleteAdmins}
+                                                onChange={(e) => setNewAdmin({
+                                                    ...newAdmin,
+                                                    permissions: {...newAdmin.permissions, canDeleteAdmins: e.target.checked}
+                                                })}
+                                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm text-gray-700">Admin o'chirish</span>
+                                        </label>
+                                        <label className="flex items-center space-x-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={newAdmin.permissions.canDeleteOrders}
+                                                onChange={(e) => setNewAdmin({
+                                                    ...newAdmin,
+                                                    permissions: {...newAdmin.permissions, canDeleteOrders: e.target.checked}
+                                                })}
+                                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm text-gray-700">Buyurtma tarixini o'chirish</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            )}
                             
                             <div className="flex justify-end space-x-3 pt-4">
                                 <button
@@ -2719,261 +3253,5 @@ const SuccessModal = ({ isOpen, onClose, title, message }) => {
         </div>
     );
 };
-
-    // Admin amallarini log qilish funksiyasi
-    const logAdminAction = async (action, details, targetType, targetId = null) => {
-        try {
-            const logData = {
-                adminId: adminInfo.id,
-                adminName: `${adminInfo.firstName} ${adminInfo.lastName}`,
-                action: action,
-                details: details,
-                targetType: targetType, // 'product', 'user', 'admin', 'order'
-                targetId: targetId,
-                timestamp: new Date().toISOString(),
-                ip: 'N/A', // Keyinroq IP ni olish mumkin
-                userAgent: navigator.userAgent || 'N/A'
-            };
-            
-            await addDoc(collection(db, "admin_logs"), logData);
-            console.log('✅ Admin amali log qilindi:', logData);
-        } catch (error) {
-            console.error('❌ Admin amalini log qilishda xatolik:', error);
-        }
-    };
-
-    // Admin management functions
-    const fetchAdmins = async () => {
-        try {
-            const querySnapshot = await getDocs(collection(db, "admins"));
-            const adminsData = [];
-            querySnapshot.forEach((doc) => {
-                adminsData.push({ id: doc.id, ...doc.data() });
-            });
-            setAdmins(adminsData);
-            console.log('✅ Adminlar Firestore dan olindi:', adminsData);
-        } catch (error) {
-            console.error('❌ Adminlarni olishda xatolik:', error);
-        }
-    };
-
-    const addAdmin = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        
-        try {
-            const adminData = {
-                ...newAdmin,
-                id: `admin_${Date.now()}`,
-                status: 'active',
-                createdAt: new Date().toISOString(),
-                createdBy: adminInfo.id
-            };
-            
-            const docRef = await addDoc(collection(db, "admins"), adminData);
-            setAdmins([...admins, { id: docRef.id, ...adminData }]);
-            
-            // Admin amalini log qilish
-            await logAdminAction(
-                'CREATE_ADMIN',
-                `Yangi admin qo'shildi: ${adminData.firstName} ${adminData.lastName} (${adminData.phone})`,
-                'admin',
-                docRef.id
-            );
-            
-            setNewAdmin({
-                firstName: '',
-                lastName: '',
-                phone: '',
-                password: '',
-                role: 'admin'
-            });
-            
-            setShowAddAdminModal(false);
-            showSuccessModal('Muvaffaqiyat!', 'Yangi admin muvaffaqiyatli qo\'shildi!');
-        } catch (error) {
-            console.error('❌ Admin qo\'shishda xatolik:', error);
-            showConfirmModal(
-                'Xatolik!',
-                'Admin qo\'shishda xatolik yuz berdi: ' + error.message,
-                () => {},
-                'error'
-            );
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const openEditAdminModal = (admin) => {
-        setEditingAdmin(admin);
-        setIsEditAdminMode(true);
-        setNewAdmin({
-            firstName: admin.firstName || '',
-            lastName: admin.lastName || '',
-            phone: admin.phone || '',
-            password: '', // Parolni bo'sh qoldirish
-            role: admin.role || 'admin'
-        });
-        setShowAddAdminModal(true);
-    };
-
-    const updateAdmin = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        
-        try {
-            const updatedData = {
-                firstName: newAdmin.firstName,
-                lastName: newAdmin.lastName,
-                phone: newAdmin.phone,
-                role: newAdmin.role,
-                updatedAt: new Date().toISOString(),
-                updatedBy: adminInfo.id
-            };
-            
-            // Agar parol kiritilgan bo'lsa, uni ham yangilash
-            if (newAdmin.password.trim()) {
-                updatedData.password = newAdmin.password;
-            }
-            
-            const adminRef = doc(db, "admins", editingAdmin.id);
-            await setDoc(adminRef, updatedData, { merge: true });
-            
-            // Admin amalini log qilish
-            await logAdminAction(
-                'UPDATE_ADMIN',
-                `Admin yangilandi: ${updatedData.firstName} ${updatedData.lastName} (${updatedData.phone})`,
-                'admin',
-                editingAdmin.id
-            );
-            
-            setAdmins(admins.map(admin => 
-                admin.id === editingAdmin.id ? { ...admin, ...updatedData } : admin
-            ));
-            
-            setNewAdmin({
-                firstName: '',
-                lastName: '',
-                phone: '',
-                password: '',
-                role: 'admin'
-            });
-            
-            setShowAddAdminModal(false);
-            setIsEditAdminMode(false);
-            setEditingAdmin(null);
-            showSuccessModal('Muvaffaqiyat!', 'Admin ma\'lumotlari muvaffaqiyatli yangilandi!');
-        } catch (error) {
-            console.error('❌ Adminni yangilashda xatolik:', error);
-            showConfirmModal(
-                'Xatolik!',
-                'Adminni yangilashda xatolik yuz berdi: ' + error.message,
-                () => {},
-                'error'
-            );
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const toggleAdminBlock = async (adminId, currentStatus) => {
-        const newStatus = currentStatus === 'blocked' ? 'active' : 'blocked';
-        const action = newStatus === 'blocked' ? 'bloklash' : 'faollashtirish';
-        
-        showConfirmModal(
-            `Adminni ${action}`,
-            `Bu adminni ${action}moqchimisiz?`,
-            async () => {
-                setIsLoading(true);
-                try {
-                    // Admin ma'lumotlarini olish (log uchun)
-                    const adminToUpdate = admins.find(a => a.id === adminId);
-                    
-                    const adminRef = doc(db, "admins", adminId);
-                    await setDoc(adminRef, { 
-                        status: newStatus,
-                        updatedAt: new Date().toISOString(),
-                        updatedBy: adminInfo.id
-                    }, { merge: true });
-                    
-                    // Admin amalini log qilish
-                    await logAdminAction(
-                        newStatus === 'blocked' ? 'BLOCK_ADMIN' : 'UNBLOCK_ADMIN',
-                        `Admin ${action}ildi: ${adminToUpdate?.firstName || 'Noma\'lum'} ${adminToUpdate?.lastName || ''} (${adminToUpdate?.phone || 'Noma\'lum'})`,
-                        'admin',
-                        adminId
-                    );
-                    
-                    setAdmins(admins.map(admin => 
-                        admin.id === adminId ? { ...admin, status: newStatus } : admin
-                    ));
-                    
-                    showSuccessModal('Muvaffaqiyat!', `Admin muvaffaqiyatli ${action}ildi`);
-                } catch (error) {
-                    console.error(`❌ Adminni ${action}ishda xatolik:`, error);
-                    showConfirmModal(
-                        'Xatolik!',
-                        `Adminni ${action}ishda xatolik yuz berdi`,
-                        () => {},
-                        'error'
-                    );
-                } finally {
-                    setIsLoading(false);
-                }
-            },
-            'warning'
-        );
-    };
-
-    const deleteAdmin = async (adminId) => {
-        showConfirmModal(
-            'Adminni o\'chirish',
-            'Bu adminni o\'chirmoqchimisiz? Bu amal qaytarib bo\'lmaydi!',
-            async () => {
-                setIsLoading(true);
-                try {
-                    // Admin ma'lumotlarini olish (log uchun)
-                    const adminToDelete = admins.find(a => a.id === adminId);
-                    
-                    await deleteDoc(doc(db, "admins", adminId));
-                    setAdmins(admins.filter(admin => admin.id !== adminId));
-                    
-                    // Admin amalini log qilish
-                    await logAdminAction(
-                        'DELETE_ADMIN',
-                        `Admin o'chirildi: ${adminToDelete?.firstName || 'Noma\'lum'} ${adminToDelete?.lastName || ''} (${adminToDelete?.phone || 'Noma\'lum'})`,
-                        'admin',
-                        adminId
-                    );
-                    
-                    showSuccessModal('Muvaffaqiyat!', 'Admin muvaffaqiyatli o\'chirildi');
-                } catch (error) {
-                    console.error('❌ Adminni o\'chirishda xatolik:', error);
-                    showConfirmModal(
-                        'Xatolik!',
-                        'Adminni o\'chirishda xatolik yuz berdi',
-                        () => {},
-                        'error'
-                    );
-                } finally {
-                    setIsLoading(false);
-                }
-            },
-            'error'
-        );
-    };
-
-    const closeAddAdminModal = () => {
-        setShowAddAdminModal(false);
-        setIsEditAdminMode(false);
-        setEditingAdmin(null);
-        setNewAdmin({
-            firstName: '',
-            lastName: '',
-            phone: '',
-            password: '',
-            role: 'admin'
-        });
-    };
 
 export default AdminPanel; 

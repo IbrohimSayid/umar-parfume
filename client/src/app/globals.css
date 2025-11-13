@@ -47,6 +47,33 @@ body {
   background: #f59e0b;
 }
 
+/* Mobile filter scroll */
+@media (max-width: 768px) {
+  .mobile-filter-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: scroll !important;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db #f3f4f6;
+  }
+  
+  .mobile-filter-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .mobile-filter-scroll::-webkit-scrollbar-track {
+    background: #f3f4f6;
+  }
+  
+  .mobile-filter-scroll::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+  }
+  
+  .mobile-filter-scroll::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+}
+
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }

@@ -82,6 +82,25 @@ export default function MahsulotPage() {
   const [authModal, setAuthModal] = useState(false);
   const [signupRequiredModal, setSignupRequiredModal] = useState(false);
 
+  // UserProfile yuklanishini kuzatish va user state'ni tekshirish
+  useEffect(() => {
+    if (user && user.uid && !userProfile) {
+      // Agar userProfile yuklanmagan bo'lsa, uni yuklashga harakat qilish
+      console.log('ℹ️ UserProfile yuklanmoqda...');
+    }
+    
+    // User state'ni console'da ko'rsatish (debug uchun)
+    if (isAuthenticated()) {
+      console.log('✅ User authenticated:', { 
+        hasUser: !!user, 
+        hasUid: !!(user && user.uid),
+        userId: user?.uid 
+      });
+    } else {
+      console.log('⚠️ User not authenticated');
+    }
+  }, [user, userProfile, isAuthenticated]);
+
   // Firebase'dan mahsulot ma'lumotlarini olish
   useEffect(() => {
     const fetchProduct = async () => {
@@ -96,9 +115,61 @@ export default function MahsulotPage() {
           const productData = { id: productDoc.id, ...productDoc.data() } as Product;
           setProduct(productData);
           
-          // Default o'lcham tanlash
+          console.log('📦 Mahsulot ma\'lumotlari:', {
+            id: productData.id,
+            name: productData.name,
+            image: productData.image,
+            imageType: typeof productData.image,
+            imageLength: productData.image?.length
+          });
+          
+          // Default o'lcham tanlash va rasmni o'rnatish
           if (productData.sizes && productData.sizes.length > 0) {
-            setSelectedSize(productData.sizes[0]);
+            const defaultSize = productData.sizes[0];
+            setSelectedSize(defaultSize);
+            
+            // Agar default o'lchamda rasm bo'lsa, uni ishlatish
+            if (defaultSize.imageName && defaultSize.imageName.trim() && defaultSize.imageName !== 'undefined' && defaultSize.imageName !== 'null') {
+              const sizeImg = String(defaultSize.imageName).trim();
+              setCurrentImageSrc(sizeImg);
+              setImageLoading(true);
+              console.log('✅ Default o\'lcham rasmi o\'rnatildi:', {
+                size: defaultSize.size,
+                imageName: sizeImg
+              });
+            } else {
+              // Agar o'lchamda rasm yo'q bo'lsa, asosiy mahsulot rasmini ishlatish
+              let imageToUse = '/images/logo.png';
+              if (productData.image) {
+                const imgStr = String(productData.image).trim();
+                if (imgStr && imgStr !== '' && imgStr !== 'undefined' && imgStr !== 'null') {
+                  imageToUse = imgStr;
+                  console.log('✅ Asosiy rasm topildi, o\'rnatilmoqda:', imageToUse);
+                } else {
+                  console.warn('⚠️ Rasm bo\'sh yoki noto\'g\'ri:', productData.image);
+                }
+              } else {
+                console.warn('⚠️ Rasm maydoni mavjud emas');
+              }
+              setCurrentImageSrc(imageToUse);
+              setImageLoading(true);
+            }
+          } else {
+            // Agar o'lchamlar yo'q bo'lsa, asosiy mahsulot rasmini ishlatish
+            let imageToUse = '/images/logo.png';
+            if (productData.image) {
+              const imgStr = String(productData.image).trim();
+              if (imgStr && imgStr !== '' && imgStr !== 'undefined' && imgStr !== 'null') {
+                imageToUse = imgStr;
+                console.log('✅ Asosiy rasm topildi, o\'rnatilmoqda:', imageToUse);
+              } else {
+                console.warn('⚠️ Rasm bo\'sh yoki noto\'g\'ri:', productData.image);
+              }
+            } else {
+              console.warn('⚠️ Rasm maydoni mavjud emas');
+            }
+            setCurrentImageSrc(imageToUse);
+            setImageLoading(true);
           }
           
           // O'xshash mahsulotlarni olish
@@ -169,21 +240,22 @@ export default function MahsulotPage() {
   };
 
   // O'lcham uchun rasm olish funksiyasi
-  const getSizeImage = (size: ProductSize) => {
+  const getSizeImage = (size: ProductSize): string | undefined => {
     if (!size) return product?.image;
     
-    // O'lcham bo'yicha turli xil Unsplash rasm ID'lari
-    const imageIds: { [key: string]: string } = {
-      '5': '1541643600914-78b084683601',     // Kichik shisha
-      '10': '1594736797933-d0501ba2fe65',    // O'rta shisha
-      '30': '1615634260167-c8cdede054de',    // Katta shisha
-      '50': '1571781926291-c477dae4ca21',    // Katta shisha 2
-      '100': '1615634260167-c8cdede054de',   // Eng katta shisha
-      'Full': '1594736797933-d0501ba2fe65'   // To'liq o'lcham
-    };
+    // Agar o'lchamda imageName maydoni bo'lsa, uni ishlatish
+    if (size.imageName && size.imageName.trim() && size.imageName !== 'undefined' && size.imageName !== 'null') {
+      const imgName = String(size.imageName).trim();
+      // Agar to'liq URL bo'lsa, uni qaytarish
+      if (imgName.startsWith('http://') || imgName.startsWith('https://')) {
+        return imgName;
+      }
+      // Agar faqat imageName bo'lsa, uni to'g'ridan-to'g'ri ishlatish
+      return imgName;
+    }
     
-    const imageId = imageIds[size.size] || '1541643600914-78b084683601';
-    return `https://images.unsplash.com/${imageId}?w=400&h=500&fit=crop&auto=format&q=80`;
+    // Agar imageName yo'q bo'lsa, asosiy mahsulot rasmini qaytarish
+    return product?.image;
   };
 
   // Modal functions
@@ -223,8 +295,7 @@ export default function MahsulotPage() {
     });
   };
 
-  const resolvedProductImage =
-    product?.image && product.image.trim() ? product.image : '/images/logo.png';
+  const [currentImageSrc, setCurrentImageSrc] = useState('/images/logo.png');
 
   const handleAddToCart = () => {
     if (!selectedSize) {
@@ -241,7 +312,7 @@ export default function MahsulotPage() {
     const cartItems = getStoredCart();
     const productId = product?.id ?? '';
     const productName = product?.name ?? '';
-    const productImage = resolvedProductImage;
+    const productImage = product?.image && product.image.trim() ? product.image : '/images/logo.png';
     const itemId = `${productId}-${selectedSize.size}`;
     const existingItemIndex = cartItems.findIndex((item) => item.id === itemId);
 
@@ -264,12 +335,34 @@ export default function MahsulotPage() {
   };
 
   const handleBuyNow = () => {
+    // Avval authentication tekshiruvi
     if (!isAuthenticated()) {
-      // Ro'yxatdan o'tmagan foydalanuvchi uchun signup modal ko'rsatish
       setSignupRequiredModal(true);
       return;
     }
 
+    // Keyin user va user.uid tekshiruvi
+    if (!user || !user.uid) {
+      console.error('❌ handleBuyNow: user yoki user.uid mavjud emas', { 
+        user, 
+        hasUser: !!user, 
+        hasUid: !!(user && user.uid),
+        isAuth: isAuthenticated()
+      });
+      
+      showConfirmModal(
+        'Foydalanuvchi ma\'lumotlari yo\'q',
+        'Buyurtma berish uchun foydalanuvchi ma\'lumotlari kerak. Iltimos, sahifani yangilang yoki qayta kirib keling.',
+        () => {
+          // Sahifani yangilash
+          window.location.reload();
+        },
+        'error'
+      );
+      return;
+    }
+
+    // Keyin selectedSize tekshiruvi
     if (!selectedSize) {
       showConfirmModal(
         'O\'lcham tanlang',
@@ -280,34 +373,48 @@ export default function MahsulotPage() {
       return;
     }
 
-    if (!userProfile) {
+    // Keyin product tekshiruvi
+    if (!product || !product.id) {
+      console.error('❌ handleBuyNow: product mavjud emas', { product });
       showConfirmModal(
-        'Profil ma\'lumotlari yo\'q',
-        'Buyurtma berish uchun profil ma\'lumotlari kerak.',
+        'Mahsulot ma\'lumotlari yo\'q',
+        'Mahsulot ma\'lumotlari topilmadi. Iltimos, sahifani yangilang.',
         () => {},
         'error'
       );
       return;
     }
 
+    // userProfile tekshiruvi - agar yo'q bo'lsa, default qiymatlar bilan ishlash
+    const customerInfo = userProfile ? {
+      firstName: userProfile.firstName || '',
+      lastName: userProfile.lastName || '',
+      phoneNumber: userProfile.phoneNumber || ''
+    } : {
+      firstName: '',
+      lastName: '',
+      phoneNumber: user?.phoneNumber || ''
+    };
+
+    // Agar userProfile yo'q bo'lsa, ogohlantirish
+    if (!userProfile) {
+      console.warn('⚠️ handleBuyNow: userProfile mavjud emas, default qiymatlar ishlatilmoqda');
+    }
+
+    const priceValue = typeof selectedSize.price === 'string' 
+      ? parseInt((selectedSize.price as string).replace(/[^\d]/g, '') || '0') 
+      : (selectedSize.price as number);
+
     const orderData = {
-      userId: user!.uid,
-      productId: product!.id,
-      productName: product!.name,
-      productImage: product!.image,
+      userId: user.uid,
+      productId: product.id,
+      productName: product.name,
+      productImage: product.image && product.image.trim() ? product.image : '/images/logo.png',
       size: selectedSize.size,
-      price: typeof selectedSize.price === 'string' 
-        ? parseInt((selectedSize.price as string).replace(/[^\d]/g, '') || '0') 
-        : (selectedSize.price as number),
+      price: priceValue,
       quantity: quantity,
-      totalPrice: (typeof selectedSize.price === 'string' 
-        ? parseInt((selectedSize.price as string).replace(/[^\d]/g, '') || '0') 
-        : (selectedSize.price as number)) * quantity,
-      customerInfo: {
-        firstName: userProfile.firstName || '',
-        lastName: userProfile.lastName || '',
-        phoneNumber: userProfile.phoneNumber || ''
-      }
+      totalPrice: priceValue * quantity,
+      customerInfo: customerInfo
     };
 
     showConfirmModal(
@@ -330,6 +437,53 @@ export default function MahsulotPage() {
     );
   };
 
+  // Rasmni o'rnatish useEffect - barcha hook'lar shartli return'lardan oldin bo'lishi kerak (React Hooks qoidasi)
+  useEffect(() => {
+    if (!product) return;
+    
+    // Avval asosiy rasmni o'rnatish
+    let resolvedProductImage = '/images/logo.png';
+    if (product.image) {
+      const imgStr = String(product.image).trim();
+      if (imgStr && imgStr !== '' && imgStr !== 'undefined' && imgStr !== 'null') {
+        resolvedProductImage = imgStr;
+      }
+    }
+    
+    // O'lcham tanlangan bo'lsa, o'lcham uchun rasmni olish
+    let finalSrc = resolvedProductImage;
+    if (selectedSize) {
+      const sizeImage = getSizeImage(selectedSize);
+      if (sizeImage && sizeImage.trim().length > 0 && sizeImage !== 'undefined' && sizeImage !== 'null' && sizeImage !== '/images/logo.png') {
+        finalSrc = sizeImage;
+        console.log('✅ O\'lcham rasmi topildi:', {
+          size: selectedSize.size,
+          imageName: selectedSize.imageName,
+          sizeImage: sizeImage
+        });
+      } else {
+        console.log('ℹ️ O\'lcham rasmi yo\'q, asosiy rasm ishlatilmoqda:', {
+          size: selectedSize.size,
+          resolvedProductImage
+        });
+      }
+    }
+    
+    console.log('🖼️ Rasm o\'rnatilmoqda:', {
+      productImage: product.image,
+      resolvedProductImage,
+      selectedSize: selectedSize?.size,
+      selectedSizeImageName: selectedSize?.imageName,
+      finalSrc,
+      productId: product.id
+    });
+    
+    setImageLoading(true);
+    setCurrentImageSrc(finalSrc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSize, product]);
+
+  // Shartli return'lar - barcha hook'lardan keyin (React Hooks qoidasi)
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -359,12 +513,6 @@ export default function MahsulotPage() {
       </div>
     );
   }
-
-  const selectedSizeImage = selectedSize ? getSizeImage(selectedSize) : undefined;
-  const mainImageSrc =
-    selectedSizeImage && selectedSizeImage.trim().length > 0
-      ? selectedSizeImage
-      : resolvedProductImage;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-32 md:pb-12">
@@ -397,19 +545,48 @@ export default function MahsulotPage() {
                 </div>
               )}
               
-              <Image 
-                src={mainImageSrc}
-                alt={`${product.name} - ${selectedSize?.size || 'asosiy'}`}
-                width={500} // Example width, adjust as needed
-                height={500} // Example height, adjust as needed
-                className={`w-full h-96 object-cover transition-all duration-500 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
-                onLoad={() => setImageLoading(false)}
-                onLoadingComplete={() => setImageLoading(false)}
-                unoptimized
-                onError={() => {
-                  // e.currentTarget.src = 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=400&h=500&fit=crop&auto=format&q=80';
-                }}
-              />
+              {currentImageSrc ? (
+                <Image 
+                  src={currentImageSrc}
+                  alt={`${product.name} - ${selectedSize?.size || 'asosiy'}`}
+                  width={500}
+                  height={500}
+                  className={`w-full h-96 object-cover transition-all duration-500 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                  onLoad={() => {
+                    console.log('✅ Rasm yuklandi:', currentImageSrc);
+                    setImageLoading(false);
+                  }}
+                  onLoadingComplete={() => {
+                    console.log('✅ Rasm to\'liq yuklandi:', currentImageSrc);
+                    setImageLoading(false);
+                  }}
+                  unoptimized
+                  onError={(e) => {
+                    console.error('❌ Rasm yuklashda xatolik:', currentImageSrc, e);
+                    setImageLoading(false);
+                    // Agar o'lcham rasmi yuklanmagan bo'lsa, asosiy mahsulot rasmini sinab ko'rish
+                    if (selectedSize && currentImageSrc !== '/images/logo.png') {
+                      const fallbackImage = product?.image && product.image.trim() && product.image !== 'undefined' && product.image !== 'null'
+                        ? product.image
+                        : '/images/logo.png';
+                      if (fallbackImage !== currentImageSrc && fallbackImage !== '/images/logo.png') {
+                        console.log('🔄 Fallback rasmga o\'tish:', fallbackImage);
+                        setCurrentImageSrc(fallbackImage);
+                        setImageLoading(true);
+                      } else {
+                        setCurrentImageSrc('/images/logo.png');
+                      }
+                    } else if (currentImageSrc !== '/images/logo.png') {
+                      setCurrentImageSrc('/images/logo.png');
+                    }
+                  }}
+                  priority
+                />
+              ) : (
+                <div className="w-full h-96 bg-gray-200 flex items-center justify-center">
+                  <p className="text-gray-400">Rasm yuklanmoqda...</p>
+                </div>
+              )}
               
               {/* O'lcham ko'rsatkichi */}
               {selectedSize && (
@@ -645,8 +822,9 @@ export default function MahsulotPage() {
                         height={192} // 48 * 4
                         className="w-full h-48 object-cover"
                         unoptimized
-                        onError={() => {
-                          // e.currentTarget.src = 'https://picsum.photos/300/400?random=related';
+                        onError={(event) => {
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.src = '/images/logo.png';
                         }}
                       />
                     </div>

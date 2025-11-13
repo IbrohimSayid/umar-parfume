@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image'; // Import Image component
-import { useAuth } from '../../contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import AuthModal from '../../components/AuthModal';
 import LoginModal from '../../components/LoginModal';
 import { db } from '../../lib/firebase';
@@ -71,7 +71,7 @@ export default function MahsulotlarPage() {
   const [noteOptions, setNoteOptions] = useState<string[]>(DEFAULT_FRAGRANCE_NOTES);
   const [isFiltersLoading, setIsFiltersLoading] = useState(true);
 
-  const { isAuthenticated } = useAuth();
+  const router = useRouter();
   const { t } = useLanguage();
 
   // Firebase'dan mahsulotlarni olish
@@ -159,15 +159,10 @@ export default function MahsulotlarPage() {
   }, [noteOptions]);
 
   // Handle buy now button click
-  const handleBuyNow = () => {
-    if (isAuthenticated()) {
-      // User is authenticated, redirect to product page
-      // window.location.href = `/mahsulot/${productId}`;
-      toast.success(t.buyNowSuccess);
-    } else {
-      // User is not authenticated, show auth modal
-      setShowAuthModal(true);
-    }
+  const handleBuyNow = (e: React.MouseEvent, productId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(`/mahsulot/${productId}`);
   };
 
   // Handle add to cart button click
@@ -383,9 +378,17 @@ export default function MahsulotlarPage() {
           <div className={`fixed inset-0 bg-black/60 z-40 md:static md:bg-transparent
             ${isFilterMenuOpen ? 'block' : 'hidden'} md:block`}
           >
-            <div className={`bg-white w-80 h-full p-6 md:p-0 shadow-lg md:shadow-none
-              ${isFilterMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
-              transform transition-transform duration-300 ease-in-out md:relative md:h-auto md:w-auto`}
+            <div 
+              className={`bg-white w-80 h-full p-6 md:p-0 shadow-lg md:shadow-none
+                ${isFilterMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
+                transform transition-transform duration-300 ease-in-out md:relative md:h-auto md:w-auto
+                mobile-filter-scroll md:overflow-y-auto max-h-screen md:max-h-none`}
+              id="mobile-filter-container"
+              style={{ 
+                maxHeight: '100vh', 
+                overflowY: 'scroll',
+                WebkitOverflowScrolling: 'touch'
+              }}
             >
               {/* Mobile Filter Header */}
               <div className="md:hidden flex justify-between items-center mb-6">
@@ -714,7 +717,7 @@ export default function MahsulotlarPage() {
                           </div>
                           <div className="flex space-x-2">
                             <button 
-                              onClick={() => handleBuyNow()}
+                              onClick={(e) => handleBuyNow(e, product.id)}
                               className="flex-1 bg-yellow-400 text-black px-3 py-1.5 rounded-md hover:bg-yellow-500 transition-colors duration-200 text-sm font-medium"
                             >
                               {t.buyNow}
@@ -799,7 +802,7 @@ export default function MahsulotlarPage() {
                       </div>
                       <div className="flex space-x-2">
                         <button 
-                          onClick={() => handleBuyNow()}
+                          onClick={(e) => handleBuyNow(e, product.id)}
                           className="flex-1 bg-yellow-400 text-black px-4 py-2 rounded-md hover:bg-yellow-500 transition-colors duration-200 font-medium"
                         >
                             {t.buyNow}

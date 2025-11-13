@@ -204,7 +204,11 @@ export default function Navbar() {
                     {userProfile?.firstName} {userProfile?.lastName}
                   </span>
                   <span className="text-gray-300 text-xs">
-                    {userProfile?.phoneNumber}
+                    {userProfile?.phoneNumber 
+                      ? (userProfile.phoneNumber.startsWith('+') 
+                          ? userProfile.phoneNumber 
+                          : `+${userProfile.phoneNumber}`)
+                      : ''}
                   </span>
                 </div>
                 <Link href="/profil" className="relative group cursor-pointer">
