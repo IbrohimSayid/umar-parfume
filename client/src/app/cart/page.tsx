@@ -86,7 +86,7 @@ export default function CartPage() {
     }
     setIsLoading(false);
     updateScrollButtons();
-  }, []);
+  }, [updateScrollButtons]);
 
   useEffect(() => {
     updateScrollButtons();

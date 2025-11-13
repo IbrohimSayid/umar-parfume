@@ -45,6 +45,12 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const { /* user */ } = useAuth(); // `user` ishlatilmagani uchun olib tashladim
 
+  const normalizeStockToNumber = (value: ProductSize['stock']): number => {
+    const normalized = String(value ?? '0').trim();
+    const parsed = parseInt(normalized, 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
   // Buyurtma berish
   const createOrder = async (orderData: Omit<Order, 'id' | 'createdAt' | 'status'>): Promise<boolean> => {
     setLoading(true);
@@ -69,7 +75,7 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       const selectedSize = sizes[selectedSizeIndex];
-      const currentStock = parseInt(selectedSize.stock) || 0;
+      const currentStock = normalizeStockToNumber(selectedSize.stock);
       
       if (currentStock < orderData.quantity) {
         toast.error(`Yetarli mahsulot yo'q. Mavjud: ${currentStock} dona`);
@@ -89,12 +95,12 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
       const updatedSizes = [...sizes];
       updatedSizes[selectedSizeIndex] = {
         ...selectedSize,
-        stock: (currentStock - orderData.quantity).toString()
+        stock: String(Math.max(currentStock - orderData.quantity, 0))
       };
 
       // Umumiy stock ni ham yangilash
       const totalStock = updatedSizes.reduce((sum: number, size: ProductSize) => {
-        return sum + (parseInt(size.stock as string) || 0);
+        return sum + normalizeStockToNumber(size.stock);
       }, 0);
 
       await updateDoc(productRef, {
