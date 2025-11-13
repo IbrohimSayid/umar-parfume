@@ -236,7 +236,10 @@ export default function MahsulotPage() {
 
     const priceValue = parsePriceValue(selectedSize.price || product?.price || 0);
     const cartItems = getStoredCart();
-    const itemId = `${product?.id}-${selectedSize.size}`;
+    const productId = product?.id ?? '';
+    const productName = product?.name ?? '';
+    const productImage = product?.image ?? '';
+    const itemId = `${productId}-${selectedSize.size}`;
     const existingItemIndex = cartItems.findIndex((item) => item.id === itemId);
 
     if (existingItemIndex >= 0) {
@@ -244,9 +247,9 @@ export default function MahsulotPage() {
     } else {
       cartItems.push({
         id: itemId,
-        productId: product?.id,
-        productName: product?.name,
-        productImage: product?.image,
+        productId,
+        productName,
+        productImage,
         size: selectedSize.size,
         price: priceValue,
         quantity
