@@ -44,7 +44,7 @@ const ADMIN_SESSION_STORAGE_KEY = 'umar_admin_session';
 const ADMIN_SESSION_DURATION_DAYS = 30;
 
 const AdminPanel = () => {
-    const [activeTab, setActiveTab] = useState('users');
+    const [activeTab, setActiveTab] = useState('dashboard');
     const [users, setUsers] = useState([]);
     const [orders, setOrders] = useState([]);
     const [products, setProducts] = useState([]);
@@ -705,6 +705,303 @@ const AdminPanel = () => {
         };
     }, [isLoggedIn]);
 
+    // Chart yaratish va yangilash
+    useEffect(() => {
+        if (!isLoggedIn || activeTab !== 'dashboard' || typeof window === 'undefined') {
+            // Chartlarni tozalash
+            if (window.usersChartInstance) {
+                window.usersChartInstance.destroy();
+                delete window.usersChartInstance;
+            }
+            if (window.ordersChartInstance) {
+                window.ordersChartInstance.destroy();
+                delete window.ordersChartInstance;
+            }
+            if (window.ordersStatusChartInstance) {
+                window.ordersStatusChartInstance.destroy();
+                delete window.ordersStatusChartInstance;
+            }
+            return;
+        }
+
+        let checkInterval = null;
+        let renderTimer = null;
+
+        const renderChartInstances = () => {
+            if (!window.Chart) {
+                console.error('❌ Chart.js mavjud emas');
+                return;
+            }
+
+            // Users Registration Chart
+            const usersCtx = document.getElementById('usersChart');
+            if (usersCtx) {
+                if (window.usersChartInstance) {
+                    window.usersChartInstance.destroy();
+                }
+
+                const last30Days = [];
+                const userCounts = [];
+                for (let i = 29; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    date.setHours(0, 0, 0, 0);
+                    const dateStr = date.toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' });
+                    last30Days.push(dateStr);
+                    
+                    const count = users.filter(user => {
+                        if (!user.createdAt) return false;
+                        const userDate = new Date(user.createdAt);
+                        userDate.setHours(0, 0, 0, 0);
+                        return userDate.getTime() === date.getTime();
+                    }).length;
+                    userCounts.push(count);
+                }
+
+                try {
+                    const ctx = usersCtx.getContext('2d');
+                    if (ctx) {
+                        window.usersChartInstance = new window.Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: last30Days,
+                                datasets: [{
+                                    label: 'Ro\'yxatdan o\'tganlar',
+                                    data: userCounts,
+                                    borderColor: 'rgb(59, 130, 246)',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    tension: 0.4,
+                                    fill: true,
+                                    pointRadius: 3,
+                                    pointHoverRadius: 5
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        ticks: {
+                                            stepSize: 1
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        console.log('✅ Users chart yaratildi');
+                    }
+                } catch (error) {
+                    console.error('❌ Users chart xatolik:', error);
+                }
+            } else {
+                console.warn('⚠️ usersChart element topilmadi');
+            }
+
+            // Orders Chart
+            const ordersCtx = document.getElementById('ordersChart');
+            if (ordersCtx) {
+                if (window.ordersChartInstance) {
+                    window.ordersChartInstance.destroy();
+                }
+
+                const last30Days = [];
+                const orderCounts = [];
+                for (let i = 29; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    date.setHours(0, 0, 0, 0);
+                    const dateStr = date.toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' });
+                    last30Days.push(dateStr);
+                    
+                    const count = orders.filter(order => {
+                        if (!order.createdAt) return false;
+                        const orderDate = new Date(order.createdAt);
+                        orderDate.setHours(0, 0, 0, 0);
+                        return orderDate.getTime() === date.getTime();
+                    }).length;
+                    orderCounts.push(count);
+                }
+
+                try {
+                    const ctx = ordersCtx.getContext('2d');
+                    if (ctx) {
+                        window.ordersChartInstance = new window.Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: last30Days,
+                                datasets: [{
+                                    label: 'Buyurtmalar',
+                                    data: orderCounts,
+                                    backgroundColor: 'rgba(34, 197, 94, 0.6)',
+                                    borderColor: 'rgb(34, 197, 94)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        ticks: {
+                                            stepSize: 1
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        console.log('✅ Orders chart yaratildi');
+                    }
+                } catch (error) {
+                    console.error('❌ Orders chart xatolik:', error);
+                }
+            } else {
+                console.warn('⚠️ ordersChart element topilmadi');
+            }
+
+            // Orders Status Chart
+            const ordersStatusCtx = document.getElementById('ordersStatusChart');
+            if (ordersStatusCtx) {
+                if (window.ordersStatusChartInstance) {
+                    window.ordersStatusChartInstance.destroy();
+                }
+
+                const statusCounts = {
+                    pending: orders.filter(o => o.status === 'pending').length,
+                    confirmed: orders.filter(o => o.status === 'confirmed').length,
+                    delivered: orders.filter(o => o.status === 'delivered').length,
+                    cancelled: orders.filter(o => o.status === 'cancelled').length
+                };
+
+                try {
+                    const ctx = ordersStatusCtx.getContext('2d');
+                    if (ctx) {
+                        window.ordersStatusChartInstance = new window.Chart(ctx, {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Kutilmoqda', 'Tasdiqlandi', 'Yetkazildi', 'Bekor qilindi'],
+                                datasets: [{
+                                    data: [
+                                        statusCounts.pending,
+                                        statusCounts.confirmed,
+                                        statusCounts.delivered,
+                                        statusCounts.cancelled
+                                    ],
+                                    backgroundColor: [
+                                        'rgba(234, 179, 8, 0.8)',
+                                        'rgba(59, 130, 246, 0.8)',
+                                        'rgba(34, 197, 94, 0.8)',
+                                        'rgba(239, 68, 68, 0.8)'
+                                    ],
+                                    borderColor: [
+                                        'rgb(234, 179, 8)',
+                                        'rgb(59, 130, 246)',
+                                        'rgb(34, 197, 94)',
+                                        'rgb(239, 68, 68)'
+                                    ],
+                                    borderWidth: 2
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        display: true,
+                                        position: 'right'
+                                    }
+                                }
+                            }
+                        });
+                        console.log('✅ Orders status chart yaratildi');
+                    }
+                } catch (error) {
+                    console.error('❌ Orders status chart xatolik:', error);
+                }
+            } else {
+                console.warn('⚠️ ordersStatusChart element topilmadi');
+            }
+        };
+
+        // Chart.js yuklanishini kutish va chartlarni render qilish
+        const renderCharts = () => {
+            // DOM tayyor bo'lishini kutish
+            renderTimer = setTimeout(() => {
+                if (!window.Chart) {
+                    console.warn('⚠️ Chart.js hali yuklanmagan, qayta urinib ko\'rilmoqda...');
+                    // Chart.js yuklanishini kutish
+                    let attempts = 0;
+                    const maxAttempts = 20;
+                    const checkChart = setInterval(() => {
+                        attempts++;
+                        if (window.Chart) {
+                            clearInterval(checkChart);
+                            renderChartInstances();
+                        } else if (attempts >= maxAttempts) {
+                            clearInterval(checkChart);
+                            console.error('❌ Chart.js yuklanmadi');
+                        }
+                    }, 200);
+                    return;
+                }
+
+                renderChartInstances();
+            }, 800);
+        };
+
+        // Chart.js yuklanishini kutish
+        if (window.Chart) {
+            renderCharts();
+        } else {
+            let attempts = 0;
+            const maxAttempts = 50; // 5 sekund (50 * 100ms)
+            checkInterval = setInterval(() => {
+                attempts++;
+                if (window.Chart) {
+                    clearInterval(checkInterval);
+                    renderCharts();
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    console.error('❌ Chart.js yuklanmadi');
+                }
+            }, 100);
+        }
+
+        return () => {
+            if (checkInterval) {
+                clearInterval(checkInterval);
+            }
+            if (renderTimer) {
+                clearTimeout(renderTimer);
+            }
+            if (window.usersChartInstance) {
+                window.usersChartInstance.destroy();
+                delete window.usersChartInstance;
+            }
+            if (window.ordersChartInstance) {
+                window.ordersChartInstance.destroy();
+                delete window.ordersChartInstance;
+            }
+            if (window.ordersStatusChartInstance) {
+                window.ordersStatusChartInstance.destroy();
+                delete window.ordersStatusChartInstance;
+            }
+        };
+    }, [isLoggedIn, activeTab, users, orders]);
+
     const handleLogin = (e) => {
         e.preventDefault();
         const { firstName, lastName, phone, password } = loginData;
@@ -729,6 +1026,7 @@ const AdminPanel = () => {
                 localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(sessionPayload));
             }
             showSuccessModal('Muvaffaqiyat!', 'Admin panelga muvaffaqiyatli kirdingiz!');
+            setActiveTab('dashboard'); // Dashboard'ni default qilish
             setLoginData({
                 firstName: '',
                 lastName: '',
@@ -747,13 +1045,26 @@ const AdminPanel = () => {
 
     const logoutAdmin = () => {
         setIsLoggedIn(false);
-        setActiveTab('users');
+        setActiveTab('dashboard');
         setDashboardLoading(false);
         setIsLoading(false);
         setCatalogLoading(false);
         setCatalogSaving(false);
         if (typeof window !== 'undefined') {
             localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+            // Chart instancelarini tozalash
+            if (window.usersChartInstance) {
+                window.usersChartInstance.destroy();
+                delete window.usersChartInstance;
+            }
+            if (window.ordersChartInstance) {
+                window.ordersChartInstance.destroy();
+                delete window.ordersChartInstance;
+            }
+            if (window.ordersStatusChartInstance) {
+                window.ordersStatusChartInstance.destroy();
+                delete window.ordersStatusChartInstance;
+            }
         }
     };
 
@@ -1703,6 +2014,7 @@ const AdminPanel = () => {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-wrap gap-4 sm:gap-6 lg:gap-8 overflow-x-auto py-2">
                         {[
+                            { key: 'dashboard', name: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
                             { key: 'users', name: 'Foydalanuvchilar', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z' },
                             { key: 'orders', name: 'Buyurtmalar', icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z' },
                             { key: 'products', name: 'Mahsulotlar', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
@@ -1729,6 +2041,245 @@ const AdminPanel = () => {
             
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Debug info - faqat development uchun */}
+                {process.env.NODE_ENV === 'development' && (
+                    <div className="mb-4 p-2 bg-yellow-100 text-xs text-gray-600 rounded">
+                        Debug: activeTab = {activeTab}, isLoggedIn = {isLoggedIn ? 'true' : 'false'}, users = {users.length}, orders = {orders.length}, products = {products.length}
+                    </div>
+                )}
+                
+                {activeTab === 'dashboard' && isLoggedIn && (
+                    <div className="space-y-6">
+                        {/* Dashboard Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {/* Total Users */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500 mb-1">Jami Foydalanuvchilar</p>
+                                        <p className="text-3xl font-bold text-gray-900">{users.length}</p>
+                                    </div>
+                                    <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Total Orders */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500 mb-1">Jami Buyurtmalar</p>
+                                        <p className="text-3xl font-bold text-gray-900">{orders.length}</p>
+                                    </div>
+                                    <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Total Products */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500 mb-1">Jami Mahsulotlar</p>
+                                        <p className="text-3xl font-bold text-gray-900">{products.length}</p>
+                                    </div>
+                                    <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                                        <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Recent Registrations */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500 mb-1">Yangi Ro'yxatdan O'tganlar</p>
+                                        <p className="text-3xl font-bold text-gray-900">
+                                            {users.filter(user => {
+                                                if (!user.createdAt) return false;
+                                                const created = new Date(user.createdAt);
+                                                const now = new Date();
+                                                const diffTime = Math.abs(now - created);
+                                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                return diffDays <= 30;
+                                            }).length}
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-1">So'ngi 30 kun</p>
+                                    </div>
+                                    <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                                        <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Charts Row */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Users Registration Chart */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4">Foydalanuvchilar Ro'yxatdan O'tish Grafigi</h3>
+                                <div className="h-64">
+                                    <canvas id="usersChart"></canvas>
+                                </div>
+                            </div>
+
+                            {/* Orders Chart */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4">Buyurtmalar Grafigi</h3>
+                                <div className="h-64">
+                                    <canvas id="ordersChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Orders Status Chart */}
+                        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4">Buyurtmalar Holati</h3>
+                            <div className="h-64">
+                                <canvas id="ordersStatusChart"></canvas>
+                            </div>
+                        </div>
+
+                        {/* Recent Activity */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Recent Users */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4">So'ngi Ro'yxatdan O'tganlar</h3>
+                                <div className="space-y-3">
+                                    {users
+                                        .sort((a, b) => {
+                                            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                                            const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                                            return dateB - dateA;
+                                        })
+                                        .slice(0, 5)
+                                        .map((user) => (
+                                            <div key={user.id || user.uid} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                <div>
+                                                    <p className="font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
+                                                    <p className="text-sm text-gray-500">{user.phoneNumber}</p>
+                                                </div>
+                                                <span className="text-xs text-gray-400">
+                                                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString('uz-UZ') : 'Noma\'lum'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    {users.length === 0 && (
+                                        <p className="text-gray-500 text-center py-4">Hozircha foydalanuvchilar yo'q</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Recent Orders */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4">So'ngi Buyurtmalar</h3>
+                                <div className="space-y-3">
+                                    {orders
+                                        .sort((a, b) => {
+                                            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                                            const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                                            return dateB - dateA;
+                                        })
+                                        .slice(0, 5)
+                                        .map((order) => (
+                                            <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                <div>
+                                                    <p className="font-semibold text-gray-900">{order.productName}</p>
+                                                    <p className="text-sm text-gray-500">{order.customerInfo?.firstName} {order.customerInfo?.lastName}</p>
+                                                </div>
+                                                <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(order.status)}`}>
+                                                    {order.status === 'pending' ? 'Kutilmoqda' : 
+                                                     order.status === 'confirmed' ? 'Tasdiqlandi' :
+                                                     order.status === 'delivered' ? 'Yetkazildi' :
+                                                     order.status === 'cancelled' ? 'Bekor qilindi' : order.status}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    {orders.length === 0 && (
+                                        <p className="text-gray-500 text-center py-4">Hozircha buyurtmalar yo'q</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Additional Statistics */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* Total Revenue (from orders) */}
+                            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg p-6 text-white">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-green-100 mb-1">Jami Daromad</p>
+                                        <p className="text-2xl font-bold">
+                                            {new Intl.NumberFormat('uz-UZ').format(
+                                                orders.reduce((sum, order) => sum + (parseFloat(order.totalPrice) || 0), 0)
+                                            )} so'm
+                                        </p>
+                                    </div>
+                                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Pending Orders */}
+                            <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-2xl shadow-lg p-6 text-white">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-yellow-100 mb-1">Kutilayotgan Buyurtmalar</p>
+                                        <p className="text-2xl font-bold">
+                                            {orders.filter(o => o.status === 'pending').length}
+                                        </p>
+                                    </div>
+                                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Delivered Orders */}
+                            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6 text-white">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-blue-100 mb-1">Yetkazilgan Buyurtmalar</p>
+                                        <p className="text-2xl font-bold">
+                                            {orders.filter(o => o.status === 'delivered').length}
+                                        </p>
+                                    </div>
+                                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Welcome Message */}
+                        <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-2xl shadow-lg p-6 md:p-8">
+                            <h2 className="text-2xl md:text-3xl font-bold text-black mb-2">
+                                Xush kelibsiz, {adminInfo.firstName} {adminInfo.lastName}!
+                            </h2>
+                            <p className="text-black/80 text-base md:text-lg">
+                                Admin panel orqali barcha ma'lumotlarni boshqaring va kuzatib boring.
+                            </p>
+                        </div>
+                    </div>
+                )}
+                
                 {activeTab === 'users' && (
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
             <div className="p-8 border-b border-gray-100">

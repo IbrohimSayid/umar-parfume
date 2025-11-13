@@ -103,8 +103,9 @@ export default function BuyurtmalarimPage() {
   }
 
   return (
-    <div className="bg-gray-50 py-8 pb-32 md:pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      <main className="flex-1 flex flex-col py-8 pb-24 md:pb-12">
+        <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{t.myOrders}</h1>
@@ -195,10 +196,11 @@ export default function BuyurtmalarimPage() {
             </Link>
           </div>
         )}
-      </div>
+        </div>
+      </main>
 
       {/* Footer - asosiy sahifadagi footer bilan bir xil */}
-      <footer className="bg-black text-white py-16 pb-28 md:pb-16 mt-auto">
+      <footer className="bg-black text-white py-12 md:py-16 pb-20 md:pb-16 w-full mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Company Info (Logo and Name) */}

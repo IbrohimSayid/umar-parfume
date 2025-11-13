@@ -103,32 +103,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Check if user is authenticated on load
   useEffect(() => {
+    // SSR uchun window tekshiruvi
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     // Avval localStorage'dan token tekshirish
     const checkStoredAuth = () => {
-      const storedToken = localStorage.getItem('userAuthToken');
-      const tokenExpiry = localStorage.getItem('userTokenExpiry');
-      
-      if (storedToken && tokenExpiry) {
-        const expiryDate = new Date(tokenExpiry);
-        const now = new Date();
+      try {
+        const storedToken = localStorage.getItem('userAuthToken');
+        const tokenExpiry = localStorage.getItem('userTokenExpiry');
         
-        if (now < expiryDate) {
-          // Token hali amal qiladi
-          const storedUser = localStorage.getItem('userData');
-          const storedProfile = localStorage.getItem('userProfile');
+        if (storedToken && tokenExpiry) {
+          const expiryDate = new Date(tokenExpiry);
+          const now = new Date();
           
-          if (storedUser && storedProfile) {
-            setUser(JSON.parse(storedUser) as AuthenticatedUser);
-            setUserProfile(JSON.parse(storedProfile));
-            return true;
+          if (now < expiryDate) {
+            // Token hali amal qiladi
+            const storedUser = localStorage.getItem('userData');
+            const storedProfile = localStorage.getItem('userProfile');
+            
+            if (storedUser && storedProfile) {
+              setUser(JSON.parse(storedUser) as AuthenticatedUser);
+              setUserProfile(JSON.parse(storedProfile));
+              return true;
+            }
+          } else {
+            // Token muddati tugagan
+            localStorage.removeItem('userAuthToken');
+            localStorage.removeItem('userTokenExpiry');
+            localStorage.removeItem('userData');
+            localStorage.removeItem('userProfile');
           }
-        } else {
-          // Token muddati tugagan
-          localStorage.removeItem('userAuthToken');
-          localStorage.removeItem('userTokenExpiry');
-          localStorage.removeItem('userData');
-          localStorage.removeItem('userProfile');
         }
+      } catch (e) {
+        console.error('localStorage xatolik:', e);
       }
       return false;
     };
@@ -150,17 +159,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               setUserProfile(userDoc.data() as UserProfile);
             } else {
               // Try to load from localStorage as fallback
-              const storedProfile = localStorage.getItem(`userProfile_${currentUser.uid}`);
-              if (storedProfile) {
-                const parsedProfile = JSON.parse(storedProfile);
-                setUserProfile(parsedProfile);
-                
-                // Foydalanuvchi ma'lumotlarini localStorage dan Firestore ga ko'chirish
+              if (typeof window !== 'undefined') {
                 try {
-                  await setDoc(userDocRef, parsedProfile, { merge: true });
-                  console.log('✅ Profil localStorage dan Firestore ga ko\'chirildi');
-                } catch (err) {
-                  console.error('Profilni Firestore ga ko\'chirishda xatolik:', err);
+                  const storedProfile = localStorage.getItem(`userProfile_${currentUser.uid}`);
+                  if (storedProfile) {
+                    const parsedProfile = JSON.parse(storedProfile);
+                    setUserProfile(parsedProfile);
+                    
+                    // Foydalanuvchi ma'lumotlarini localStorage dan Firestore ga ko'chirish
+                    try {
+                      await setDoc(userDocRef, parsedProfile, { merge: true });
+                      console.log('✅ Profil localStorage dan Firestore ga ko\'chirildi');
+                    } catch (err) {
+                      console.error('Profilni Firestore ga ko\'chirishda xatolik:', err);
+                    }
+                  }
+                } catch (e) {
+                  console.error('localStorage xatolik:', e);
                 }
               }
             }
@@ -254,7 +269,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // User state ni yangilash
         setUser(confirmedUser);
         
-        // Token va ma'lumotlarni saqlash
+        // Token va ma'lumotlarni saqlash (1 oylik)
         const token = `umar_parfume_${Date.now()}_${confirmedUser.uid}`;
         const expiryDate = new Date();
         expiryDate.setMonth(expiryDate.getMonth() + 1);
@@ -267,7 +282,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         delete win.pendingMockUser;
         delete win.confirmationResult;
         
-        console.log('✅ SMS kod tasdiqlandi, user o\'rnatildi:', confirmedUser);
+        console.log('✅ SMS kod tasdiqlandi, token saqlandi, muddati:', expiryDate.toLocaleString('uz-UZ'));
 
         return { success: true, user: confirmedUser };
       }
@@ -322,13 +337,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         activeUser = createMockUser(normalizedPhone, resolvedUid);
         setUser(activeUser);
 
-        const token = `umar_parfume_${Date.now()}_${activeUser.uid}`;
-        const expiryDate = new Date();
-        expiryDate.setMonth(expiryDate.getMonth() + 1);
+        // 1 oylik token yaratish va saqlash
+        if (typeof window !== 'undefined') {
+          const token = `umar_parfume_${Date.now()}_${activeUser.uid}`;
+          const expiryDate = new Date();
+          expiryDate.setMonth(expiryDate.getMonth() + 1);
 
-        localStorage.setItem('userAuthToken', token);
-        localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
-        localStorage.setItem('userData', JSON.stringify(activeUser));
+          localStorage.setItem('userAuthToken', token);
+          localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
+          localStorage.setItem('userData', JSON.stringify(activeUser));
+          
+          console.log('✅ Yangi user yaratildi va token saqlandi, muddati:', expiryDate.toLocaleString('uz-UZ'));
+        }
         
         console.log('✅ Yangi user yaratildi va saqlandi:', activeUser);
       } else {
@@ -353,8 +373,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.log('✅ Profil Firestore ga saqlandi:', fullProfile);
         toast.success('Profil saqlandi');
 
-        localStorage.setItem(`userProfile_${resolvedUid}`, JSON.stringify(fullProfile));
-        localStorage.setItem('userProfile', JSON.stringify(fullProfile));
+        // localStorage ga saqlash (SSR uchun tekshiruv)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`userProfile_${resolvedUid}`, JSON.stringify(fullProfile));
+          localStorage.setItem('userProfile', JSON.stringify(fullProfile));
+          
+          // Token yaratish va saqlash (register qilinganda)
+          const token = localStorage.getItem('userAuthToken');
+          const tokenExpiry = localStorage.getItem('userTokenExpiry');
+          
+          if (!token || !tokenExpiry || new Date(tokenExpiry) < new Date()) {
+            // Agar token yo'q yoki muddati tugagan bo'lsa, yangi token yaratish
+            const newToken = `umar_parfume_${Date.now()}_${resolvedUid}`;
+            const expiryDate = new Date();
+            expiryDate.setMonth(expiryDate.getMonth() + 1);
+            
+            localStorage.setItem('userAuthToken', newToken);
+            localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
+            console.log('✅ Register qilinganda token yaratildi, muddati:', expiryDate.toLocaleString('uz-UZ'));
+          }
+        }
 
         return true;
       } catch (firestoreError) {
@@ -376,22 +414,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Check if user is authenticated
   const isAuthenticated = (): boolean => {
+    // SSR uchun window tekshiruvi
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
     // User va user.uid tekshiruvi
     if (user && user.uid) {
       return true;
     }
     
-    // localStorage dan ham tekshirish
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        if (parsedUser && parsedUser.uid) {
-          return true;
+    // localStorage dan ham tekshirish (token asosida)
+    try {
+      const storedToken = localStorage.getItem('userAuthToken');
+      const tokenExpiry = localStorage.getItem('userTokenExpiry');
+      
+      if (storedToken && tokenExpiry) {
+        const expiryDate = new Date(tokenExpiry);
+        const now = new Date();
+        
+        if (now < expiryDate) {
+          // Token hali amal qiladi
+          const storedUser = localStorage.getItem('userData');
+          if (storedUser) {
+            try {
+              const parsedUser = JSON.parse(storedUser);
+              if (parsedUser && parsedUser.uid) {
+                return true;
+              }
+            } catch (e) {
+              // localStorage ma'lumotlari noto'g'ri
+            }
+          }
+        } else {
+          // Token muddati tugagan, tozalash
+          localStorage.removeItem('userAuthToken');
+          localStorage.removeItem('userTokenExpiry');
+          localStorage.removeItem('userData');
         }
-      } catch (e) {
-        // localStorage ma'lumotlari noto'g'ri
       }
+    } catch (e) {
+      // localStorage xatolik
+      console.error('localStorage xatolik:', e);
     }
     
     return false;
@@ -403,11 +467,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(null);
       setUserProfile(null);
       
-      // Barcha localStorage ma'lumotlarini tozalash
-      localStorage.removeItem('userAuthToken');
-      localStorage.removeItem('userTokenExpiry');
-      localStorage.removeItem('userData');
-      localStorage.removeItem('userProfile');
+      // Barcha localStorage ma'lumotlarini tozalash (SSR uchun tekshiruv)
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('userAuthToken');
+        localStorage.removeItem('userTokenExpiry');
+        localStorage.removeItem('userData');
+        localStorage.removeItem('userProfile');
+        
+        // Barcha userProfile_ prefikslar bilan boshlanadigan key'larni tozalash
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('userProfile_')) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+      }
       
       toast.info('Tizimdan chiqildi');
     }).catch((error) => {
@@ -464,15 +540,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(authUser);
       setUserProfile(userData);
 
-      const token = `umar_parfume_${Date.now()}_${authUser.uid}`;
-      const expiryDate = new Date();
-      expiryDate.setMonth(expiryDate.getMonth() + 1);
+      // 1 oylik token yaratish va saqlash (SSR uchun tekshiruv)
+      if (typeof window !== 'undefined') {
+        const token = `umar_parfume_${Date.now()}_${authUser.uid}`;
+        const expiryDate = new Date();
+        expiryDate.setMonth(expiryDate.getMonth() + 1);
 
-      localStorage.setItem('userAuthToken', token);
-      localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
-      localStorage.setItem('userData', JSON.stringify(authUser));
-      localStorage.setItem('userProfile', JSON.stringify(userData));
-      localStorage.setItem(`userProfile_${authUser.uid}`, JSON.stringify(userData));
+        localStorage.setItem('userAuthToken', token);
+        localStorage.setItem('userTokenExpiry', expiryDate.toISOString());
+        localStorage.setItem('userData', JSON.stringify(authUser));
+        localStorage.setItem('userProfile', JSON.stringify(userData));
+        localStorage.setItem(`userProfile_${authUser.uid}`, JSON.stringify(userData));
+        
+        console.log('✅ Login qilinganda token saqlandi, muddati:', expiryDate.toLocaleString('uz-UZ'));
+      }
 
       toast.success('Muvaffaqiyatli kirdingiz!');
       return { success: true, user: authUser };

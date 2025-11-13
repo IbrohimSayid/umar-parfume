@@ -223,8 +223,8 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 md:p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 my-4 md:my-0 max-h-[95vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 p-6 rounded-t-3xl">
           <div className="flex justify-between items-center">
@@ -375,17 +375,18 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
                 </p>
               </div>
               
-              <div className="flex justify-center space-x-3">
+              <div className="flex justify-center space-x-2 md:space-x-3">
                 {smsCode.map((digit, index) => (
                   <input
                     key={index}
                     ref={inputRefs[index]}
                     type="text"
+                    inputMode="numeric"
                     maxLength={1}
                     value={digit}
                     onChange={(e) => handleSmsInputChange(index, e.target.value)}
                     onKeyDown={(e) => handleSmsKeyDown(index, e)}
-                    className="w-12 h-14 text-center border-2 border-gray-200 rounded-xl text-gray-900 text-xl font-bold focus:border-yellow-400 focus:ring-0 transition-all duration-200"
+                    className="w-10 h-12 md:w-12 md:h-14 text-center border-2 border-gray-200 rounded-xl text-gray-900 text-lg md:text-xl font-bold focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-30 transition-all duration-200"
                   />
                 ))}
               </div>
@@ -393,7 +394,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
               <button
                 onClick={handleVerifyCode}
                 disabled={isLoading || smsCode.join('').length !== 6}
-                className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:transform-none"
+                className="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black font-bold py-3 md:py-3.5 px-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:transform-none text-base md:text-lg"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center">
@@ -407,7 +408,8 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
               
               <button
                 onClick={() => setStep(1)}
-                className="w-full text-gray-600 hover:text-gray-800 py-2 font-medium transition-colors"
+                className="w-full text-gray-600 hover:text-gray-800 py-2 font-medium transition-colors text-sm md:text-base"
+                disabled={isLoading}
               >
                 ← Orqaga qaytish
               </button>

@@ -142,38 +142,46 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-        <div className="p-6">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 md:p-6">
+      <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-4 md:p-6">
           {/* Header */}
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-black">
-              Kirish
-            </h2>
-            <button
-              onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl"
-              disabled={loading}
-            >
-              ×
-            </button>
+          <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 -m-4 md:-m-6 mb-4 md:mb-6 p-4 md:p-6 rounded-t-2xl md:rounded-t-3xl">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold text-white">
+                  Kirish
+                </h2>
+                <p className="text-white/90 text-sm mt-1">Hisobingizga kiring</p>
+              </div>
+              <button
+                onClick={handleClose}
+                className="text-white/80 hover:text-white w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors text-xl md:text-2xl"
+                disabled={loading}
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           {/* Error message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md">
-              {error}
+            <div className="mb-4 p-3 md:p-4 bg-red-50 border-2 border-red-200 text-red-700 rounded-xl flex items-center text-sm md:text-base">
+              <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{error}</span>
             </div>
           )}
 
           {/* Login Form */}
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4 md:space-y-5">
             <div>
-              <label className="block text-sm font-medium text-black mb-1">
+              <label className="block text-sm md:text-base font-semibold text-gray-700 mb-2">
                 Telefon raqam *
               </label>
               <div className="flex">
-                <span className="inline-flex items-center px-3 text-sm text-black bg-gray-50 border border-r-0 border-gray-300 rounded-l-md">
+                <span className="inline-flex items-center px-3 md:px-4 text-sm md:text-base font-semibold text-gray-700 bg-gray-100 border-2 border-r-0 border-gray-200 rounded-l-xl">
                   +998
                 </span>
                 <input
@@ -183,15 +191,15 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
                   onChange={handleInputChange}
                   required
                   maxLength={9}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-black"
-                  placeholder="90 123 45 67"
+                  className="flex-1 px-3 md:px-4 py-2.5 md:py-3 border-2 border-gray-200 rounded-r-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 transition-all text-black text-base"
+                  placeholder="901234567"
                   disabled={loading}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-black mb-1">
+              <label className="block text-sm md:text-base font-semibold text-gray-700 mb-2">
                 {t.password} *
               </label>
               <div className="relative">
@@ -201,22 +209,22 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
                 value={formData.password}
                 onChange={handleInputChange}
                 required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-black pr-10"
+                  className="w-full px-3 md:px-4 py-2.5 md:py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 transition-all text-black pr-12 text-base"
                   placeholder={t.password}
                 disabled={loading}
               />
                 <button 
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700"
+                  className="absolute inset-y-0 right-0 pr-3 md:pr-4 flex items-center text-gray-500 hover:text-gray-700"
                   disabled={loading}
                 >
                   {showPassword ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.875m-1.563 3.875L.05 12C1.325 5.923 7.114 2 12 2c1.789 0 3.528.58 5.064 1.574M18 10v4M3 21h18" />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 5.923 7.523 2 12 2c4.478 0 8.268 2.943 9.542 7 .296 1.157.296 2.478 0 3.638C20.268 18.077 16.477 22 12 22c-4.478 0-8.268-2.943-9.542-7z" />
                     </svg>
@@ -228,17 +236,22 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-yellow-400 text-black py-3 rounded-md font-semibold hover:bg-yellow-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black py-3 md:py-3.5 rounded-xl font-bold text-base md:text-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              {loading ? 'Kirilmoqda...' : 'Kirish'}
+              {loading ? (
+                <div className="flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Kirilmoqda...
+                </div>
+              ) : 'Kirish'}
             </button>
 
             {/* Forgot Password */}
-            <div className="text-center">
+            <div className="text-center pt-2">
               <button 
                 type="button"
                 onClick={onForgotPassword}
-                className="text-yellow-600 hover:text-yellow-700 text-sm font-medium"
+                className="text-yellow-600 hover:text-yellow-700 text-sm md:text-base font-medium transition-colors"
                 disabled={loading}
               >
                 Parolni unutdingizmi?
@@ -246,12 +259,12 @@ export default function LoginModal({ isOpen, onClose, onSuccess, onSwitchToRegis
             </div>
 
             {/* Switch to Register */}
-            <div className="text-center mt-4">
-              <p className="text-sm text-black">
+            <div className="text-center pt-2 border-t border-gray-200">
+              <p className="text-sm md:text-base text-gray-600 mt-3">
                 Akkauntingiz yo&apos;qmi?{' '}
                 <button 
                   type="button"
-                  className="text-yellow-600 hover:text-yellow-700 font-medium"
+                  className="text-yellow-600 hover:text-yellow-700 font-semibold transition-colors"
                   onClick={onSwitchToRegister}
                   disabled={loading}
                 >

@@ -671,20 +671,19 @@ export default function MahsulotlarPage() {
               </div>
             ) : (
               <>
-                {/* Horizontal Slider for Mobile */}
-                <div className="md:hidden overflow-x-auto custom-scrollbar pb-4">
-                  <div className="flex space-x-4">
-                    {filteredProducts.map((product) => (
-                      <div key={product.id} className="flex-shrink-0 w-56 bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200">
+                {/* Vertical Grid for Mobile - Full Width Cards */}
+                <div className="md:hidden grid grid-cols-1 gap-4 pb-4">
+                  {filteredProducts.map((product) => (
+                    <div key={product.id} className="w-full bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200">
                         <Link href={`/mahsulot/${product.id}`}>
                           <div className="cursor-pointer">
                             <div className="aspect-w-3 aspect-h-4 bg-gray-200">
                               <Image 
                                 src={product.image || ''} 
                                 alt={product.name}
-                                width={224} // w-56, h-48
-                                height={192} // w-56, h-48
-                                className="w-full h-48 object-cover"
+                                width={400}
+                                height={400}
+                                className="w-full h-64 md:h-48 object-cover"
                                 onError={(e) => {
                                   e.currentTarget.src = 'https://picsum.photos/300/400?random=error';
                                 }}
@@ -708,23 +707,23 @@ export default function MahsulotlarPage() {
                         </Link>
                         <div className="px-3 pb-3">
                           <div className="text-center mb-2">
-                            <span className="text-md font-bold text-black">
+                            <span className="text-lg font-bold text-black">
                               {formatPrice(product.price)}
                             </span>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-sm text-gray-500 mt-1">
                               {t.stock}: {product.stock} dona
                             </div>
                           </div>
                           <div className="flex space-x-2">
                             <button 
                               onClick={(e) => handleBuyNow(e, product.id)}
-                              className="flex-1 bg-yellow-400 text-black px-3 py-1.5 rounded-md hover:bg-yellow-500 transition-colors duration-200 text-sm font-medium"
+                              className="flex-1 bg-yellow-400 text-black px-3 py-2 rounded-md hover:bg-yellow-500 transition-colors duration-200 text-sm font-medium"
                             >
                               {t.buyNow}
                             </button>
                             <button 
                               onClick={() => handleAddToCart(product)}
-                              className="flex-1 bg-gray-800 text-white px-3 py-1.5 rounded-md hover:bg-gray-700 transition-colors duration-200 text-sm font-medium"
+                              className="flex-1 bg-gray-800 text-white px-3 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200 text-sm font-medium"
                             >
                               {t.addToCart}
                             </button>
@@ -732,7 +731,6 @@ export default function MahsulotlarPage() {
                         </div>
                       </div>
                     ))}
-                  </div>
                 </div>
 
                 {/* Vertical Grid for Desktop and Larger Screens */}
