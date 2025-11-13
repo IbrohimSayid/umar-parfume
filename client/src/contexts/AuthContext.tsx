@@ -1,21 +1,3 @@
-type WindowWithAuth = Window & {
-  confirmationResult?: MockConfirmationResult;
-  pendingMockUser?: MockUser;
-};
-
-const createMockUser = (phoneNumber: string, uid?: string): MockUser => ({
-  uid: uid ?? `user_${Date.now()}`,
-  phoneNumber,
-  isAnonymous: false,
-  providerData: [],
-  metadata: { creationTime: '', lastSignInTime: '' },
-  delete: async () => {},
-  getIdToken: async () => '',
-  getIdTokenResult: async () => ({}),
-  reload: async () => {},
-  tenantId: null,
-  toJSON: () => ({}),
-});
 'use client';
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
@@ -91,6 +73,25 @@ interface AuthContextType {
   isAuthenticated: () => boolean;
   logout: () => void;
 }
+
+type WindowWithAuth = Window & {
+  confirmationResult?: MockConfirmationResult;
+  pendingMockUser?: MockUser;
+};
+
+const createMockUser = (phoneNumber: string, uid?: string): MockUser => ({
+  uid: uid ?? `user_${Date.now()}`,
+  phoneNumber,
+  isAnonymous: false,
+  providerData: [],
+  metadata: { creationTime: '', lastSignInTime: '' },
+  delete: async () => {},
+  getIdToken: async () => '',
+  getIdTokenResult: async () => ({}),
+  reload: async () => {},
+  tenantId: null,
+  toJSON: () => ({}),
+});
 
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
