@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, setDoc, updateDoc, getDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -39,9 +39,66 @@ const DEFAULT_SIZES = [
     '5ml', '7ml', '10ml', '15ml', '30ml', '50ml', '75ml', '100ml', 'Full'
 ];
 
+const DEFAULT_PRODUCT_IMAGE = 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=300&h=400&fit=crop&auto=format';
+
+const LOW_STOCK_THRESHOLD = 3;
+const RECENT_USER_DAYS = 7;
+const RECENT_ORDER_DAYS = 2;
+const TAB_VISIT_STORAGE_KEY = 'umar_admin_tab_visits';
+const HIGHLIGHT_DURATION_MS = 2 * 60 * 1000;
+const ORDER_STATUS_META = {
+    all: {
+        label: 'Barchasi',
+        badgeClass: 'bg-gray-100 text-gray-700 border border-gray-200',
+        activeClass: 'bg-gray-900 text-white border-gray-900',
+        inactiveClass: 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
+    },
+    pending: {
+        label: 'Kutilmoqda',
+        badgeClass: 'bg-yellow-50 text-yellow-800 border border-yellow-200',
+        activeClass: 'bg-yellow-500 text-white border-yellow-500',
+        inactiveClass: 'bg-yellow-50 border border-yellow-200 text-yellow-700 hover:bg-yellow-100'
+    },
+    confirmed: {
+        label: 'Tasdiqlangan',
+        badgeClass: 'bg-blue-50 text-blue-800 border border-blue-200',
+        activeClass: 'bg-blue-500 text-white border-blue-500',
+        inactiveClass: 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'
+    },
+    delivered: {
+        label: 'Yetkazilgan',
+        badgeClass: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
+        activeClass: 'bg-emerald-500 text-white border-emerald-500',
+        inactiveClass: 'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+    },
+    cancelled: {
+        label: 'Bekor qilingan',
+        badgeClass: 'bg-red-50 text-red-800 border border-red-200',
+        activeClass: 'bg-red-500 text-white border-red-500',
+        inactiveClass: 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100'
+    }
+};
+
+const getDaysFromNow = (dateValue) => {
+    if (!dateValue) return Infinity;
+    const parsed = new Date(dateValue);
+    if (Number.isNaN(parsed.getTime())) {
+        return Infinity;
+    }
+    return (Date.now() - parsed.getTime()) / (1000 * 60 * 60 * 24);
+};
+
+const toTimestamp = (value) => {
+    if (!value) return 0;
+    const parsed = new Date(value);
+    const ms = parsed.getTime();
+    return Number.isNaN(ms) ? 0 : ms;
+};
+
 const CATALOG_SETTINGS_PATH = { collection: 'settings', doc: 'catalog' };
 const ADMIN_SESSION_STORAGE_KEY = 'umar_admin_session';
 const ADMIN_SESSION_DURATION_DAYS = 30;
+const THEME_STORAGE_KEY = 'umar_admin_theme';
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -53,6 +110,12 @@ const AdminPanel = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [dashboardLoading, setDashboardLoading] = useState(false);
+    const [theme, setTheme] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem(THEME_STORAGE_KEY) || 'light';
+        }
+        return 'light';
+    });
     
     // Edit product state
     const [editingProduct, setEditingProduct] = useState(null);
@@ -87,11 +150,8 @@ const AdminPanel = () => {
         description: '',
         category: 'erkak',
         fragranceNotes: [],
-        sizes: [],
-        image: '' // Asosiy mahsulot rasmi
+        sizes: []
     });
-    const [productImageFile, setProductImageFile] = useState(null);
-    const [productImagePreview, setProductImagePreview] = useState('');
     const [showSizesDropdown, setShowSizesDropdown] = useState(false);
     
     // Filter sozlamalari
@@ -151,6 +211,175 @@ const AdminPanel = () => {
     const [selectedOrders, setSelectedOrders] = useState([]);
     const [selectAllOrders, setSelectAllOrders] = useState(false);
     const [orderTimeFilter, setOrderTimeFilter] = useState('all'); // 'all', '1week', '1month', 'older'
+    const [orderStatusFilter, setOrderStatusFilter] = useState('all');
+    const [orderSearchQuery, setOrderSearchQuery] = useState('');
+    const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [productSearchQuery, setProductSearchQuery] = useState('');
+    const [tabVisitTimes, setTabVisitTimes] = useState({});
+    const [tabHighlightCutoffs, setTabHighlightCutoffs] = useState({});
+    const [tabHighlightActive, setTabHighlightActive] = useState({});
+    const highlightTimersRef = useRef({});
+    useEffect(() => {
+        if (!isLoggedIn || typeof window === 'undefined') {
+            setTabVisitTimes({});
+            return;
+        }
+        try {
+            const stored = JSON.parse(localStorage.getItem(TAB_VISIT_STORAGE_KEY) || '{}');
+            if (stored && typeof stored === 'object') {
+                setTabVisitTimes(stored);
+            }
+        } catch (error) {
+            console.warn('Tab visit ma\'lumotlarini o\'qishda xatolik:', error);
+            setTabVisitTimes({});
+        }
+    }, [isLoggedIn]);
+
+    useEffect(() => {
+        return () => {
+            Object.values(highlightTimersRef.current || {}).forEach(timer => clearTimeout(timer));
+        };
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const body = document.body;
+        if (!body) {
+            return;
+        }
+        if (theme === 'dark') {
+            body.classList.add('dark-mode');
+        } else {
+            body.classList.remove('dark-mode');
+        }
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+        return () => {
+            body.classList.remove('dark-mode');
+        };
+    }, [theme]);
+
+
+    const recentUsersCount = useMemo(() => {
+        return users.filter((user) => getDaysFromNow(user.createdAt) <= RECENT_USER_DAYS).length;
+    }, [users]);
+
+    const usersSinceLastVisit = useMemo(() => {
+        const lastVisit = tabVisitTimes.users || 0;
+        return users.filter(user => toTimestamp(user.createdAt) > lastVisit).length;
+    }, [users, tabVisitTimes]);
+
+    const recentOrdersCount = useMemo(() => {
+        return orders.filter((order) => getDaysFromNow(order.createdAt) <= RECENT_ORDER_DAYS).length;
+    }, [orders]);
+
+    const ordersSinceLastVisit = useMemo(() => {
+        const lastVisit = tabVisitTimes.orders || 0;
+        return orders.filter(order => toTimestamp(order.createdAt) > lastVisit).length;
+    }, [orders, tabVisitTimes]);
+
+    const pendingOrdersCount = useMemo(() => {
+        return orders.filter((order) => {
+            const status = (order.status || '').toString().toLowerCase();
+            return ['kutilmoqda', 'pending', 'yangi', 'new'].includes(status);
+        }).length;
+    }, [orders]);
+
+    const lowStockCount = useMemo(() => {
+        return products.filter((product) => {
+            if (Array.isArray(product.sizes) && product.sizes.length > 0) {
+                return product.sizes.some((size) => {
+                    const numericStock = typeof size.stock === 'string'
+                        ? parseInt(size.stock, 10)
+                        : typeof size.stock === 'number'
+                            ? size.stock
+                            : 0;
+                    return !Number.isNaN(numericStock) && numericStock > 0 && numericStock <= LOW_STOCK_THRESHOLD;
+                });
+            }
+            const totalStock = typeof product.stock === 'string'
+                ? parseInt(product.stock, 10)
+                : product.stock;
+            return typeof totalStock === 'number' && totalStock > 0 && totalStock <= LOW_STOCK_THRESHOLD;
+        }).length;
+    }, [products]);
+
+    const updateTabVisitTime = (tabKey, timestamp = Date.now()) => {
+        setTabVisitTimes(prev => {
+            const updated = { ...prev, [tabKey]: timestamp };
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(TAB_VISIT_STORAGE_KEY, JSON.stringify(updated));
+            }
+            return updated;
+        });
+    };
+
+    const activateTabHighlight = (tabKey, cutoffTimestamp) => {
+        if (!cutoffTimestamp) {
+            return;
+        }
+        setTabHighlightCutoffs(prev => ({ ...prev, [tabKey]: cutoffTimestamp }));
+        setTabHighlightActive(prev => ({ ...prev, [tabKey]: true }));
+        if (highlightTimersRef.current[tabKey]) {
+            clearTimeout(highlightTimersRef.current[tabKey]);
+        }
+        highlightTimersRef.current[tabKey] = setTimeout(() => {
+            setTabHighlightActive(prev => ({ ...prev, [tabKey]: false }));
+        }, HIGHLIGHT_DURATION_MS);
+    };
+
+    const handleTabClick = (tabKey) => {
+        const previousVisit = tabVisitTimes[tabKey] || 0;
+        setActiveTab(tabKey);
+
+        if (tabKey === 'users') {
+            const hasNewUsers = users.some(user => toTimestamp(user.createdAt) > previousVisit);
+            if (hasNewUsers) {
+                activateTabHighlight(tabKey, previousVisit);
+            }
+        }
+
+        updateTabVisitTime(tabKey);
+    };
+
+    const shouldHighlightUser = (user) => {
+        if (!tabHighlightActive.users) {
+            return false;
+        }
+        const cutoff = tabHighlightCutoffs.users || 0;
+        return toTimestamp(user.createdAt) > cutoff;
+    };
+
+    const toggleTheme = () => {
+        setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    };
+
+     const formatBadgeValue = (value) => {
+        if (typeof value !== 'number') {
+            return value;
+        }
+        return value > 99 ? '99+' : value;
+    };
+
+    const getTabBadgeInfo = (tabKey) => {
+        switch (tabKey) {
+            case 'users':
+                return usersSinceLastVisit > 0
+                    ? { count: usersSinceLastVisit, color: 'bg-blue-500 text-white' }
+                    : null;
+            case 'orders':
+                return ordersSinceLastVisit > 0
+                    ? { count: ordersSinceLastVisit, color: 'bg-green-500 text-white' }
+                    : null;
+            case 'products':
+                return lowStockCount > 0
+                    ? { count: lowStockCount, color: 'bg-red-500 text-white' }
+                    : null;
+            default:
+                return null;
+        }
+    };
 
     // Modal functions
     const showConfirmModal = (title, message, onConfirm, type = 'info') => {
@@ -1104,20 +1333,6 @@ const AdminPanel = () => {
         setNewProduct({ ...newProduct, sizes: updatedSizes });
     };
 
-    // Asosiy mahsulot rasmini yuklash
-    const handleProductImageChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setProductImageFile(file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setProductImagePreview(reader.result);
-                setNewProduct({ ...newProduct, image: reader.result });
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
     // O'lcham rasmini yuklash
     const handleSizeImageChange = (index, e) => {
         const file = e.target.files[0];
@@ -1201,11 +1416,15 @@ const AdminPanel = () => {
         try {
             const cleanedSizes = newProduct.sizes
                 .filter(size => size.size)
-                .map(size => ({
-                    size: size.size,
-                    price: size.price || '0',
-                    stock: size.stock || '0'
-                }));
+                .map(size => {
+                    const imageValue = typeof size.imageName === 'string' ? size.imageName.trim() : '';
+                    return {
+                        size: size.size,
+                        price: size.price || '0',
+                        stock: size.stock || '0',
+                        imageName: imageValue
+                    };
+                });
 
             if (!cleanedSizes.length) {
                 showConfirmModal(
@@ -1222,13 +1441,15 @@ const AdminPanel = () => {
                 return sum + (parseInt(size.stock) || 0);
             }, 0);
 
+            const primaryImage = cleanedSizes.find((size) => size.imageName)?.imageName;
+
             const product = {
                 name: newProduct.name,
                 brand: newProduct.brand,
                 price: newProduct.price,
                 stock: totalStock,
                 status: totalStock > 0 ? 'mavjud' : 'mavjud emas',
-                image: newProduct.image || `https://images.unsplash.com/photo-1541643600914-78b084683601?w=300&h=400&fit=crop&random=${Date.now()}`,
+                image: primaryImage || DEFAULT_PRODUCT_IMAGE,
                 description: newProduct.description,
                 category: newProduct.category,
                 fragrance_notes: newProduct.fragranceNotes,
@@ -1255,11 +1476,8 @@ const AdminPanel = () => {
                 description: '',
                 category: 'erkak',
                 fragranceNotes: [],
-                sizes: [],
-                image: ''
+                sizes: []
             });
-            setProductImageFile(null);
-            setProductImagePreview('');
             setShowSizesDropdown(false);
             setShowProductModal(false);
             showSuccessModal('Muvaffaqiyat!', 'Mahsulot muvaffaqiyatli qo\'shildi!');
@@ -1354,11 +1572,15 @@ const AdminPanel = () => {
         try {
             const cleanedSizes = newProduct.sizes
                 .filter(size => size.size)
-                .map(size => ({
-                    size: size.size,
-                    price: size.price || '0',
-                    stock: size.stock || '0'
-                }));
+                .map(size => {
+                    const imageValue = typeof size.imageName === 'string' ? size.imageName.trim() : '';
+                    return {
+                        size: size.size,
+                        price: size.price || '0',
+                        stock: size.stock || '0',
+                        imageName: imageValue
+                    };
+                });
 
             if (!cleanedSizes.length) {
                 showConfirmModal(
@@ -1375,13 +1597,15 @@ const AdminPanel = () => {
                 return sum + (parseInt(size.stock) || 0);
             }, 0);
 
+            const primaryImage = cleanedSizes.find((size) => size.imageName)?.imageName;
+
             const updatedProduct = {
                 name: newProduct.name,
                 brand: newProduct.brand,
                 price: newProduct.price,
                 stock: totalStock, // O'lchamlar sonidan hisoblangan
                 status: totalStock > 0 ? 'mavjud' : 'mavjud emas',
-                image: newProduct.image || editingProduct.image, // Yangi rasm yoki eski rasmni saqlash
+                image: primaryImage || editingProduct.image || DEFAULT_PRODUCT_IMAGE,
                 description: newProduct.description,
                 category: newProduct.category,
                 fragrance_notes: newProduct.fragranceNotes,
@@ -1434,11 +1658,8 @@ const AdminPanel = () => {
             description: '',
             category: 'erkak',
             fragranceNotes: [],
-            sizes: [],
-            image: ''
+            sizes: []
         });
-        setProductImageFile(null);
-        setProductImagePreview('');
         setShowSizesDropdown(false);
     };
 
@@ -1799,10 +2020,14 @@ const AdminPanel = () => {
         );
     };
 
+    const resetOrderSelection = () => {
+        setSelectedOrders([]);
+        setSelectAllOrders(false);
+    };
+
     const handleSelectAllOrders = () => {
         if (selectAllOrders) {
-            setSelectedOrders([]);
-            setSelectAllOrders(false);
+            resetOrderSelection();
         } else {
             const filteredOrders = getFilteredOrders();
             setSelectedOrders(filteredOrders.map(order => order.id));
@@ -1834,8 +2059,89 @@ const AdminPanel = () => {
             });
         }
 
+        if (orderStatusFilter !== 'all') {
+            filtered = filtered.filter(order => (order.status || 'pending') === orderStatusFilter);
+        }
+
+        if (orderSearchQuery.trim()) {
+            const query = orderSearchQuery.trim().toLowerCase();
+            filtered = filtered.filter(order => {
+                const idMatch = (order.id || '').toLowerCase().includes(query);
+                const customerFirst = (order.customerInfo?.firstName || '').toLowerCase();
+                const customerLast = (order.customerInfo?.lastName || '').toLowerCase();
+                const customerName = `${customerFirst} ${customerLast}`.trim();
+                const phone = (order.customerInfo?.phoneNumber || order.phone || '').toLowerCase();
+                return (
+                    idMatch ||
+                    customerFirst.includes(query) ||
+                    customerLast.includes(query) ||
+                    customerName.includes(query) ||
+                    phone.includes(query)
+                );
+            });
+        }
+
         return filtered;
     };
+
+    const filteredOrders = useMemo(
+        () => getFilteredOrders(),
+        [orders, orderTimeFilter, orderStatusFilter, orderSearchQuery]
+    );
+
+    const orderStatusCounts = useMemo(() => {
+        const counts = {
+            all: orders.length,
+            pending: 0,
+            confirmed: 0,
+            delivered: 0,
+            cancelled: 0
+        };
+        orders.forEach(order => {
+            const status = order.status || 'pending';
+            counts[status] = (counts[status] || 0) + 1;
+        });
+        return counts;
+    }, [orders]);
+
+    const filteredUsers = useMemo(() => {
+        if (!userSearchQuery.trim()) {
+            return users;
+        }
+        const query = userSearchQuery.trim().toLowerCase();
+        return users.filter(user => {
+            const firstName = (user.firstName || '').toLowerCase();
+            const lastName = (user.lastName || '').toLowerCase();
+            const phone = (user.phoneNumber || '').toLowerCase();
+            return (
+                firstName.includes(query) ||
+                lastName.includes(query) ||
+                `${firstName} ${lastName}`.includes(query) ||
+                phone.includes(query)
+            );
+        });
+    }, [users, userSearchQuery]);
+
+    const filteredProducts = useMemo(() => {
+        if (!productSearchQuery.trim()) {
+            return products;
+        }
+        const query = productSearchQuery.trim().toLowerCase();
+        return products.filter(product => {
+            const name = (product.name || '').toLowerCase();
+            const brand = (product.brand || '').toLowerCase();
+            return name.includes(query) || brand.includes(query);
+        });
+    }, [products, productSearchQuery]);
+
+    const orderSummaryMeta = ORDER_STATUS_META[orderStatusFilter] || ORDER_STATUS_META.all;
+    const displayOrderCount = filteredOrders.length;
+    const userCountLabel = userSearchQuery.trim()
+        ? `${filteredUsers.length} / ${users.length}`
+        : users.length;
+    const productCountLabel = productSearchQuery.trim()
+        ? `${filteredProducts.length} / ${products.length}`
+        : products.length;
 
     const deleteSelectedOrders = async () => {
         if (selectedOrders.length === 0) {
@@ -1961,11 +2267,11 @@ const AdminPanel = () => {
     }
     
     return (
-        <div className="min-h-screen bg-gray-50 relative">
+        <div className={`min-h-screen relative transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-900 text-slate-100' : 'bg-gray-50 text-gray-900'}`}>
             {shouldShowGlobalLoader && (
-                <div className="fixed inset-0 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center z-40">
+                <div className={`fixed inset-0 backdrop-blur-sm flex flex-col items-center justify-center z-40 ${theme === 'dark' ? 'bg-gray-900/80' : 'bg-white/70'}`}>
                     <div className="w-14 h-14 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-gray-700 font-semibold text-center px-6">Ma&apos;lumotlar yuklanmoqda...</p>
+                    <p className={`font-semibold text-center px-6 ${theme === 'dark' ? 'text-gray-100' : 'text-gray-700'}`}>Ma&apos;lumotlar yuklanmoqda...</p>
                 </div>
             )}
             {/* Header */}
@@ -1983,6 +2289,26 @@ const AdminPanel = () => {
                         </div>
                         
                         <div className="flex items-center space-x-4">
+                            <button
+                                onClick={toggleTheme}
+                                title={theme === 'dark' ? "Yorug' rejim" : 'Tungi rejim'}
+                                className={`w-11 h-11 rounded-xl border flex items-center justify-center transition-colors ${
+                                    theme === 'dark'
+                                        ? 'bg-slate-800 border-slate-600 text-yellow-300 hover:text-yellow-100'
+                                        : 'bg-white border-gray-200 text-gray-600 hover:text-gray-900'
+                                }`}
+                                aria-label="Tema tugmasi"
+                            >
+                                {theme === 'dark' ? (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-7.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                                    </svg>
+                                )}
+                            </button>
                             <button
                                 onClick={() => setShowAdminModal(true)}
                                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl transition-colors"
@@ -2019,35 +2345,38 @@ const AdminPanel = () => {
                             { key: 'orders', name: 'Buyurtmalar', icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z' },
                             { key: 'products', name: 'Mahsulotlar', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
                             ...(adminInfo.role === 'super_admin' ? [{ key: 'admins', name: 'Adminlar', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z' }] : [])
-                        ].map(tab => (
-                            <button
-                                key={tab.key}
-                                onClick={() => setActiveTab(tab.key)}
-                                className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors flex items-center ${
-                                    activeTab === tab.key
-                                        ? 'border-yellow-500 text-yellow-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
-                                </svg>
-                                {tab.name}
-                            </button>
-                        ))}
+                        ].map(tab => {
+                            const badgeInfo = getTabBadgeInfo(tab.key);
+                            return (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => handleTabClick(tab.key)}
+                                    className={`py-4 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 flex-shrink-0 min-w-[150px] ${
+                                        activeTab === tab.key
+                                            ? 'border-yellow-500 text-yellow-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
+                                    </svg>
+                                    <span>{tab.name}</span>
+                                    {badgeInfo?.count ? (
+                                        <span
+                                            className={`ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full ${badgeInfo.color}`}
+                                        >
+                                            {formatBadgeValue(badgeInfo.count)}
+                                        </span>
+                                    ) : null}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             </nav>
             
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Debug info - faqat development uchun */}
-                {process.env.NODE_ENV === 'development' && (
-                    <div className="mb-4 p-2 bg-yellow-100 text-xs text-gray-600 rounded">
-                        Debug: activeTab = {activeTab}, isLoggedIn = {isLoggedIn ? 'true' : 'false'}, users = {users.length}, orders = {orders.length}, products = {products.length}
-                    </div>
-                )}
-                
                 {activeTab === 'dashboard' && isLoggedIn && (
                     <div className="space-y-6">
                         {/* Dashboard Stats */}
@@ -2268,15 +2597,6 @@ const AdminPanel = () => {
                             </div>
                         </div>
 
-                        {/* Welcome Message */}
-                        <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-2xl shadow-lg p-6 md:p-8">
-                            <h2 className="text-2xl md:text-3xl font-bold text-black mb-2">
-                                Xush kelibsiz, {adminInfo.firstName} {adminInfo.lastName}!
-                            </h2>
-                            <p className="text-black/80 text-base md:text-lg">
-                                Admin panel orqali barcha ma'lumotlarni boshqaring va kuzatib boring.
-                            </p>
-                        </div>
                     </div>
                 )}
                 
@@ -2294,12 +2614,38 @@ const AdminPanel = () => {
                         <p className="text-gray-500 mt-1">Ro'yxatdan o'tgan foydalanuvchilar</p>
                     </div>
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2 rounded-xl">
-                        <span className="text-blue-600 font-semibold">Jami: {users.length}</span>
+                        <span className="text-blue-600 font-semibold">Jami: {userCountLabel}</span>
                     </div>
                 </div>
             </div>
             <div className="p-8">
-                            {users.length > 0 ? (
+                <div className="mb-6">
+                    <div className="relative max-w-md">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
+                            </svg>
+                        </span>
+                        <input
+                            type="text"
+                            value={userSearchQuery}
+                            onChange={(e) => setUserSearchQuery(e.target.value)}
+                            placeholder="Ism, familiya yoki telefon orqali qidirish"
+                            className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                    </div>
+                </div>
+                            {users.length === 0 ? (
+                <div className="text-center py-12">
+                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday foydalanuvchi yo'q</h3>
+                    <p className="text-gray-500">Foydalanuvchilar ro'yxatdan o'tganda bu yerda ko'rinadi</p>
+                </div>
+                            ) : filteredUsers.length > 0 ? (
                                 <div className="overflow-x-auto">
                                     <table className="min-w-full">
                                         <thead className="bg-gray-50">
@@ -2313,8 +2659,13 @@ const AdminPanel = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="bg-white divide-y divide-gray-200">
-                                            {users.map(user => (
-                                                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                                            {filteredUsers.map(user => {
+                                                const isHighlighted = shouldHighlightUser(user);
+                                                return (
+                                                <tr
+                                                    key={user.id}
+                                                    className={`transition-colors ${isHighlighted ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'}`}
+                                                >
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.firstName}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.lastName}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.phoneNumber}</td>
@@ -2349,7 +2700,8 @@ const AdminPanel = () => {
                                                         </button>
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -2360,8 +2712,8 @@ const AdminPanel = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                         </svg>
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday foydalanuvchi yo'q</h3>
-                    <p className="text-gray-500">Foydalanuvchilar ro'yxatdan o'tganda bu yerda ko'rinadi</p>
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Natija topilmadi</h3>
+                    <p className="text-gray-500">Boshqa qidiruv so'zini kiriting</p>
                 </div>
                             )}
             </div>
@@ -2381,46 +2733,100 @@ const AdminPanel = () => {
                         </h2>
                         <p className="text-gray-500 mt-1">Barcha buyurtmalar tarixi</p>
                     </div>
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2 rounded-xl">
-                        <span className="text-green-600 font-semibold">Jami: {orders.length}</span>
+                    <div className={`px-4 py-2 rounded-xl text-sm font-semibold flex flex-col ${orderSummaryMeta.badgeClass}`}>
+                        <span>{orderSummaryMeta.label}</span>
+                        <span className="text-lg">{displayOrderCount}</span>
                     </div>
                 </div>
             </div>
             <div className="p-8">
                 {/* Filters and Actions */}
-                <div className="mb-6 flex flex-wrap items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-gray-700">Vaqt filtri:</label>
-                        <select
-                            value={orderTimeFilter}
-                            onChange={(e) => {
-                                setOrderTimeFilter(e.target.value);
-                                setSelectedOrders([]);
-                                setSelectAllOrders(false);
-                            }}
-                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                        >
-                            <option value="all">Barchasi</option>
-                            <option value="1week">So'nggi 1 hafta</option>
-                            <option value="1month">So'nggi 1 oy</option>
-                            <option value="older">1 oydan oldingi</option>
-                        </select>
+                <div className="mb-6 space-y-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="relative w-full lg:max-w-md">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
+                                </svg>
+                            </span>
+                            <input
+                                type="text"
+                                value={orderSearchQuery}
+                                onChange={(e) => {
+                                    setOrderSearchQuery(e.target.value);
+                                    resetOrderSelection();
+                                }}
+                                placeholder="ID, ism, familiya yoki telefon bo'yicha qidirish"
+                                className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                            />
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-700">Vaqt filtri:</label>
+                                <select
+                                    value={orderTimeFilter}
+                                    onChange={(e) => {
+                                        setOrderTimeFilter(e.target.value);
+                                        resetOrderSelection();
+                                    }}
+                                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                >
+                                    <option value="all">Barchasi</option>
+                                    <option value="1week">So'nggi 1 hafta</option>
+                                    <option value="1month">So'nggi 1 oy</option>
+                                    <option value="older">1 oydan oldingi</option>
+                                </select>
+                            </div>
+                            {selectedOrders.length > 0 && (
+                                <button
+                                    onClick={deleteSelectedOrders}
+                                    disabled={isLoading}
+                                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center"
+                                >
+                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    {selectedOrders.length} ta buyurtmani o'chirish
+                                </button>
+                            )}
+                        </div>
                     </div>
-                    {selectedOrders.length > 0 && (
-                        <button
-                            onClick={deleteSelectedOrders}
-                            disabled={isLoading}
-                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center"
-                        >
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            {selectedOrders.length} ta buyurtmani o'chirish
-                        </button>
-                    )}
+                    <div className="flex flex-wrap gap-2">
+                        {Object.keys(ORDER_STATUS_META).map((statusKey) => {
+                            const meta = ORDER_STATUS_META[statusKey];
+                            const isActive = orderStatusFilter === statusKey;
+                            return (
+                                <button
+                                    key={statusKey}
+                                    onClick={() => {
+                                        setOrderStatusFilter(statusKey);
+                                        resetOrderSelection();
+                                    }}
+                                    className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-colors flex items-center gap-2 ${
+                                        isActive ? meta.activeClass : meta.inactiveClass
+                                    }`}
+                                >
+                                    <span>{meta.label}</span>
+                                    <span className={`text-xs font-bold ${isActive ? 'text-white/80' : 'text-current/70'}`}>
+                                        {orderStatusCounts[statusKey] ?? 0}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
                 
-                {orders.length > 0 ? (
+                {orders.length === 0 ? (
+                    <div className="text-center py-12">
+                        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday buyurtma yo&apos;q</h3>
+                        <p className="text-gray-500">Mijozlar buyurtma berganda bu yerda ko&apos;rinadi</p>
+                    </div>
+                ) : filteredOrders.length > 0 ? (
                     <div className="overflow-x-auto">
                         <table className="min-w-full">
                             <thead className="bg-gray-50">
@@ -2442,7 +2848,7 @@ const AdminPanel = () => {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {getFilteredOrders().map(order => (
+                                {filteredOrders.map(order => (
                                     <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${selectedOrders.includes(order.id) ? 'bg-yellow-50' : ''}`}>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <input
@@ -2524,17 +2930,17 @@ const AdminPanel = () => {
                             </tbody>
                         </table>
                     </div>
-                            ) : (
-                <div className="text-center py-12">
-                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                        </svg>
+                ) : (
+                    <div className="text-center py-12">
+                        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">Natija topilmadi</h3>
+                        <p className="text-gray-500">Boshqa filtrlardan foydalanib ko&apos;ring</p>
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday buyurtma yo&apos;q</h3>
-                    <p className="text-gray-500">Mijozlar buyurtma berganda bu yerda ko&apos;rinadi</p>
-                </div>
-                            )}
+                )}
             </div>
         </div>
                 )}
@@ -2555,7 +2961,7 @@ const AdminPanel = () => {
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-2 rounded-xl">
-                            <span className="text-purple-600 font-semibold">Jami: {products.length}</span>
+                            <span className="text-purple-600 font-semibold">Jami: {productCountLabel}</span>
                         </div>
                         <button
                             onClick={() => setShowFilterSettingsModal(true)}
@@ -2580,8 +2986,36 @@ const AdminPanel = () => {
                     </div>
                 </div>
             </div>
-            {products.length > 0 ? (
-                <div className="overflow-x-auto">
+            {products.length === 0 ? (
+                    <div className="text-center py-12">
+                        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday mahsulot yo&apos;q</h3>
+                        <p className="text-gray-500">Yangi mahsulot qo'shish uchun yuqoridagi tugmani bosing</p>
+                    </div>
+            ) : (
+                <>
+                <div className="px-8 pt-6">
+                    <div className="relative max-w-md">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
+                            </svg>
+                        </span>
+                        <input
+                            type="text"
+                            value={productSearchQuery}
+                            onChange={(e) => setProductSearchQuery(e.target.value)}
+                            placeholder="Mahsulot yoki brend bo'yicha qidirish"
+                            className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                    </div>
+                </div>
+                {filteredProducts.length > 0 ? (
+                <div className="px-8 pb-8 overflow-x-auto">
                     <table className="min-w-full">
                         <thead className="bg-gray-50">
                             <tr>
@@ -2594,7 +3028,7 @@ const AdminPanel = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {products.map(product => (
+                            {filteredProducts.map(product => (
                                 <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
@@ -2656,17 +3090,19 @@ const AdminPanel = () => {
                         </tbody>
                     </table>
                 </div>
-            ) : (
-                    <div className="text-center py-12">
+                ) : (
+                    <div className="text-center py-12 px-8">
                         <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                             </svg>
                         </div>
-                        <h3 className="text-xl font-semibold text-gray-700 mb-2">Hech qanday mahsulot yo&apos;q</h3>
-                        <p className="text-gray-500">Yangi mahsulot qo&apos;shish uchun yuqoridagi tugmani bosing</p>
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">Natija topilmadi</h3>
+                        <p className="text-gray-500">Boshqa qidiruv so'zini kiriting</p>
                     </div>
-                        )}
+                )}
+                </>
+            )}
                 </div>
             )}
             
@@ -2823,7 +3259,7 @@ const AdminPanel = () => {
             {/* Filter Settings Modal */}
             {showFilterSettingsModal && (
                 <div 
-                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
                     onClick={(e) => {
                         if (e.target === e.currentTarget) {
                             setShowFilterSettingsModal(false);
@@ -3067,7 +3503,7 @@ const AdminPanel = () => {
                                 <svg className="w-8 h-8 mr-3 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
-                                {isEditMode ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot qo&apos;shish'}
+                                {isEditMode ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot qo\'shish'}
                             </h3>
                             <button 
                                 onClick={closeProductModal}
@@ -3081,25 +3517,6 @@ const AdminPanel = () => {
                     <form onSubmit={isEditMode ? handleProductUpdate : handleProductSubmit} className="p-6 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-gray-700 font-semibold mb-2">Mahsulot rasmi *</label>
-                                <input 
-                                    type="file" 
-                                    accept="image/*"
-                                    onChange={handleProductImageChange}
-                                    className="w-full border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-yellow-400 transition-colors cursor-pointer"
-                                    required={!isEditMode}
-                                />
-                                {productImagePreview && (
-                                    <div className="mt-3">
-                                        <img 
-                                            src={productImagePreview} 
-                                            alt="Preview" 
-                                            className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                            <div>
                                 <label className="block text-gray-700 font-semibold mb-2">Mahsulot nomi *</label>
                                 <input
                                     type="text"
@@ -3107,6 +3524,17 @@ const AdminPanel = () => {
                                     onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
                                     className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
                                     placeholder="Masalan: Chanel No. 5"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-semibold mb-2">Asosiy narx *</label>
+                                <input
+                                    type="text"
+                                    value={newProduct.price}
+                                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                                    className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
+                                    placeholder="Masalan: 850000"
                                     required
                                 />
                             </div>
@@ -3120,7 +3548,30 @@ const AdminPanel = () => {
                                         type="text"
                                         list="brand-options"
                                         value={newProduct.brand}
-                                        onChange={(e) => setNewProduct({...newProduct, brand: e.target.value})}
+                                        onChange={(e) => {
+                                            setNewProduct({...newProduct, brand: e.target.value});
+                                        }}
+                                        onBlur={async (e) => {
+                                            const brandValue = e.target.value.trim();
+                                            if (brandValue && !availableBrands.some(brand => brand.toLowerCase() === brandValue.toLowerCase())) {
+                                                const updatedBrands = [...availableBrands, brandValue];
+                                                setAvailableBrands(updatedBrands);
+                                                await persistCatalogSettings({ brands: updatedBrands });
+                                                showSuccessModal('Muvaffaqiyat!', `${brandValue} brendi avtomatik qo'shildi.`);
+                                            }
+                                        }}
+                                        onKeyDown={async (e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                const brandValue = newProduct.brand.trim();
+                                                if (brandValue && !availableBrands.some(brand => brand.toLowerCase() === brandValue.toLowerCase())) {
+                                                    const updatedBrands = [...availableBrands, brandValue];
+                                                    setAvailableBrands(updatedBrands);
+                                                    await persistCatalogSettings({ brands: updatedBrands });
+                                                    showSuccessModal('Muvaffaqiyat!', `${brandValue} brendi avtomatik qo'shildi.`);
+                                                }
+                                            }
+                                        }}
                                         className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
                                         placeholder="Masalan: Chanel"
                                         required
@@ -3140,30 +3591,18 @@ const AdminPanel = () => {
                                 </datalist>
                             </div>
                             <div>
-                                <label className="block text-gray-700 font-semibold mb-2">Asosiy narx *</label>
-                                <input
-                                    type="text"
-                                    value={newProduct.price}
-                                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                                <label className="block text-gray-700 font-semibold mb-2">Jins *</label>
+                                <select
+                                    value={newProduct.category}
+                                    onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
                                     className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
-                                    placeholder="Masalan: 850000"
                                     required
-                                />
+                                >
+                                    <option value="erkak">Erkaklar uchun</option>
+                                    <option value="ayol">Ayollar uchun</option>
+                                    <option value="unisex">Barcha uchun</option>
+                                </select>
                             </div>
-                        </div>
-                        
-                        <div>
-                            <label className="block text-gray-700 font-semibold mb-2">Jins *</label>
-                            <select
-                                value={newProduct.category}
-                                onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
-                                className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-yellow-400 focus:ring-0 transition-colors"
-                                required
-                            >
-                                <option value="erkak">Erkaklar uchun</option>
-                                <option value="ayol">Ayollar uchun</option>
-                                <option value="unisex">Barcha uchun</option>
-                            </select>
                         </div>
                         
                         <div>
@@ -3264,6 +3703,9 @@ const AdminPanel = () => {
                                     O&apos;lcham qo&apos;shish
                                 </button>
                             </div>
+                            <p className="text-sm text-gray-500 mb-4">
+                                Har bir o&apos;lcham uchun yuklangan rasm klient va admin interfeysida ko&apos;rinadigan asosiy surat bo&apos;ladi.
+                            </p>
 
                             {/* O'lchamlar ro'yxati - inline form */}
                             <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
@@ -3774,30 +4216,33 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, type = 'info
 
 // Success Modal Component
 const SuccessModal = ({ isOpen, onClose, title, message }) => {
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        const timer = setTimeout(onClose, 2800);
+        return () => clearTimeout(timer);
+    }, [isOpen, onClose]);
+
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100">
-                <div className="bg-green-50 border-2 border-green-200 p-6 rounded-t-2xl">
-                    <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
-                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+        <div className="fixed bottom-6 right-6 z-[70] flex justify-end pointer-events-none px-4">
+            <div className="pointer-events-auto bg-white border border-green-200 shadow-2xl rounded-2xl p-4 w-full max-w-sm">
+                <div className="flex items-start space-x-3">
+                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
                     </div>
-                </div>
-                
-                <div className="p-6">
-                    <p className="text-gray-600 mb-6 leading-relaxed">{message}</p>
-                    
+                    <div className="flex-1">
+                        <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{message}</p>
+                    </div>
                     <button
                         onClick={onClose}
-                        className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-xl font-medium transition-colors"
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label="Yopish"
                     >
-                        Yaxshi
+                        ✕
                     </button>
                 </div>
             </div>

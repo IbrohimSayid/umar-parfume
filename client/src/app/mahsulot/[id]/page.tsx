@@ -81,6 +81,7 @@ export default function MahsulotPage() {
 
   const [authModal, setAuthModal] = useState(false);
   const [signupRequiredModal, setSignupRequiredModal] = useState(false);
+  const [pendingAutoPurchase, setPendingAutoPurchase] = useState(false);
 
   // UserProfile yuklanishini kuzatish va user state'ni tekshirish
   useEffect(() => {
@@ -334,14 +335,18 @@ export default function MahsulotPage() {
     toast.success(`${product?.name} (${selectedSize.size}) savatga qo'shildi`);
   };
 
-  const handleBuyNow = () => {
-    // Avval authentication tekshiruvi
-    if (!isAuthenticated()) {
-      setSignupRequiredModal(true);
-      return;
+  const handleBuyNow = (options: { skipAuthCheck?: boolean } = {}) => {
+    const { skipAuthCheck = false } = options;
+
+    if (!skipAuthCheck) {
+      const isUserAuthenticated = Boolean(user && user.uid && isAuthenticated());
+      if (!isUserAuthenticated) {
+        setPendingAutoPurchase(true);
+        setSignupRequiredModal(true);
+        return;
+      }
     }
 
-    // Keyin user va user.uid tekshiruvi
     if (!user || !user.uid) {
       console.error('❌ handleBuyNow: user yoki user.uid mavjud emas', { 
         user, 
@@ -354,7 +359,6 @@ export default function MahsulotPage() {
         'Foydalanuvchi ma\'lumotlari yo\'q',
         'Buyurtma berish uchun foydalanuvchi ma\'lumotlari kerak. Iltimos, sahifani yangilang yoki qayta kirib keling.',
         () => {
-          // Sahifani yangilash
           window.location.reload();
         },
         'error'
@@ -362,7 +366,6 @@ export default function MahsulotPage() {
       return;
     }
 
-    // Keyin selectedSize tekshiruvi
     if (!selectedSize) {
       showConfirmModal(
         'O\'lcham tanlang',
@@ -373,7 +376,6 @@ export default function MahsulotPage() {
       return;
     }
 
-    // Keyin product tekshiruvi
     if (!product || !product.id) {
       console.error('❌ handleBuyNow: product mavjud emas', { product });
       showConfirmModal(
@@ -385,7 +387,6 @@ export default function MahsulotPage() {
       return;
     }
 
-    // userProfile tekshiruvi - agar yo'q bo'lsa, default qiymatlar bilan ishlash
     const customerInfo = userProfile ? {
       firstName: userProfile.firstName || '',
       lastName: userProfile.lastName || '',
@@ -396,7 +397,6 @@ export default function MahsulotPage() {
       phoneNumber: user?.phoneNumber || ''
     };
 
-    // Agar userProfile yo'q bo'lsa, ogohlantirish
     if (!userProfile) {
       console.warn('⚠️ handleBuyNow: userProfile mavjud emas, default qiymatlar ishlatilmoqda');
     }
@@ -414,7 +414,7 @@ export default function MahsulotPage() {
       price: priceValue,
       quantity: quantity,
       totalPrice: priceValue * quantity,
-      customerInfo: customerInfo
+      customerInfo
     };
 
     showConfirmModal(
@@ -427,7 +427,6 @@ export default function MahsulotPage() {
             'Buyurtma berildi!',
             'Sizning buyurtmangiz muvaffaqiyatli qabul qilindi. Tez orada siz bilan bog\'lanamiz!\n\n2 sekund ichida "Buyurtmalarim" sahifasiga yo\'naltirilasiz...'
           );
-          // 2 sekund kutib buyurtmalar sahifasiga yo'naltirish
           setTimeout(() => {
             router.push('/buyurtmalarim');
           }, 2000);
@@ -436,6 +435,16 @@ export default function MahsulotPage() {
       'info'
     );
   };
+
+  useEffect(() => {
+    if (pendingAutoPurchase && user && user.uid) {
+      setPendingAutoPurchase(false);
+      setSignupRequiredModal(false);
+      setAuthModal(false);
+      handleBuyNow({ skipAuthCheck: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAutoPurchase, user]);
 
   // Rasmni o'rnatish useEffect - barcha hook'lar shartli return'lardan oldin bo'lishi kerak (React Hooks qoidasi)
   useEffect(() => {
@@ -863,9 +872,13 @@ export default function MahsulotPage() {
       {/* Signup Required Modal */}
       <SignupRequiredModal
         isOpen={signupRequiredModal}
-        onClose={() => setSignupRequiredModal(false)}
+        onClose={() => {
+          setSignupRequiredModal(false);
+          setPendingAutoPurchase(false);
+        }}
         onSignup={() => {
           setSignupRequiredModal(false);
+          setPendingAutoPurchase(true);
           setAuthModal(true);
         }}
       />
@@ -873,13 +886,13 @@ export default function MahsulotPage() {
       {/* Auth Modal */}
       <AuthModal
         isOpen={authModal}
-        onClose={() => setAuthModal(false)}
+        onClose={() => {
+          setAuthModal(false);
+          setPendingAutoPurchase(false);
+        }}
         onSuccess={() => {
           setAuthModal(false);
-          // Muvaffaqiyatli ro'yxatdan o'tgandan keyin avtomatik buyurtma berish
-          setTimeout(() => {
-            handleBuyNow();
-          }, 500);
+          // pendingAutoPurchase true bo'lsa, useEffect avtomatik buyurtma jarayonini davom ettiradi
         }}
       />
     </div>

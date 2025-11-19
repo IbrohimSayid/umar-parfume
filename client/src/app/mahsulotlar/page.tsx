@@ -10,6 +10,7 @@ import { db } from '../../lib/firebase';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { toast } from 'react-toastify';
+import { useAuth } from '../../contexts/AuthContext';
 
 export interface ProductSize {
   size: string;
@@ -70,9 +71,14 @@ export default function MahsulotlarPage() {
   const [brandOptions, setBrandOptions] = useState<string[]>(DEFAULT_BRANDS);
   const [noteOptions, setNoteOptions] = useState<string[]>(DEFAULT_FRAGRANCE_NOTES);
   const [isFiltersLoading, setIsFiltersLoading] = useState(true);
+  const [restockModalOpen, setRestockModalOpen] = useState(false);
+  const [restockProduct, setRestockProduct] = useState<Product | null>(null);
+  const [restockForm, setRestockForm] = useState({ name: '', phone: '', message: '' });
+  const [isRestockSubmitting, setIsRestockSubmitting] = useState(false);
 
   const router = useRouter();
   const { t } = useLanguage();
+  const { userProfile } = useAuth();
 
   // Firebase'dan mahsulotlarni olish
   useEffect(() => {
@@ -158,6 +164,17 @@ export default function MahsulotlarPage() {
     setSelectedFragranceNotes((prev) => prev.filter((note) => noteOptions.includes(note)));
   }, [noteOptions]);
 
+useEffect(() => {
+  if (!restockProduct) return;
+  setRestockForm((prev) => ({
+    name: userProfile?.firstName
+      ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim()
+      : prev.name,
+    phone: userProfile?.phoneNumber || prev.phone,
+    message: `${restockProduct.name} ${t.restockDefaultMessage}`
+  }));
+}, [restockProduct, userProfile, t]);
+
   // Handle buy now button click
   const handleBuyNow = (e: React.MouseEvent, productId: string) => {
     e.preventDefault();
@@ -194,6 +211,10 @@ export default function MahsulotlarPage() {
   };
 
   const handleAddToCart = (productItem: Product) => {
+    if (!productItem.stock || productItem.stock <= 0) {
+      toast.info(t.outOfStock);
+      return;
+    }
     if (!productItem.sizes || !productItem.sizes.length) {
       toast.info('Bu mahsulot uchun o\'lcham mavjud emas');
       return;
@@ -221,6 +242,175 @@ export default function MahsulotlarPage() {
 
     saveCart(cartItems);
     toast.success(`${productItem.name} (${selectedSize.size}) savatga qo'shildi`);
+  };
+
+  const openRestockModal = (productItem: Product) => {
+    setRestockProduct(productItem);
+    setRestockModalOpen(true);
+  };
+
+  const closeRestockModal = () => {
+    setRestockModalOpen(false);
+    setRestockProduct(null);
+    setRestockForm({ name: '', phone: '', message: '' });
+  };
+
+  const handleRestockInputChange = (field: 'name' | 'phone' | 'message', value: string) => {
+    setRestockForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleRestockSubmit = async () => {
+    if (!restockProduct) return;
+    if (!restockForm.message.trim()) {
+      toast.info(t.restockModalDescription);
+      return;
+    }
+
+    setIsRestockSubmitting(true);
+    try {
+      const response = await fetch('/api/restock-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: restockProduct.id,
+          productName: restockProduct.name,
+          name: restockForm.name,
+          phone: restockForm.phone,
+          message: restockForm.message
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || t.restockError);
+      }
+
+      toast.success(t.restockSuccess);
+      closeRestockModal();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t.restockError;
+      toast.error(message);
+    } finally {
+      setIsRestockSubmitting(false);
+    }
+  };
+
+  const renderProductCard = (product: Product) => {
+    const isOutOfStock = !product.stock || product.stock <= 0;
+    const hasLongDescription = product.description && product.description.length > 140;
+
+    return (
+      <div
+        key={product.id}
+        className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col h-full hover:shadow-2xl transition-shadow duration-300"
+      >
+        <Link href={`/mahsulot/${product.id}`} className="block">
+          <div className="bg-gray-100">
+            <Image
+              src={product.image || ''}
+              alt={product.name}
+              width={360}
+              height={360}
+              className="w-full h-60 object-cover"
+              onError={(e) => {
+                e.currentTarget.src = 'https://picsum.photos/300/400?random=error';
+              }}
+            />
+          </div>
+        </Link>
+
+        <div className="flex-1 flex flex-col p-3 space-y-3">
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <h3 className="text-base font-semibold text-black line-clamp-1">{product.name}</h3>
+              <p className="text-gray-700 text-sm">{product.brand}</p>
+            </div>
+            <span
+              className={`px-2 py-1 text-xs rounded-full ${
+                product.category === 'erkak'
+                  ? 'bg-blue-100 text-blue-800'
+                  : product.category === 'ayol'
+                  ? 'bg-pink-100 text-pink-800'
+                  : 'bg-purple-100 text-purple-800'
+              }`}
+            >
+              {product.category === 'erkak' ? t.men : product.category === 'ayol' ? t.women : 'Unisex'}
+            </span>
+          </div>
+
+          {product.fragrance_notes && product.fragrance_notes.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              {product.fragrance_notes.slice(0, 3).map((note, index) => (
+                <span
+                  key={`${product.id}-note-${index}`}
+                  className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full"
+                >
+                  {note}
+                </span>
+              ))}
+              {product.fragrance_notes.length > 3 && (
+                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                  +{product.fragrance_notes.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+
+          <p className="text-gray-600 text-sm line-clamp-2 min-h-[36px]">{product.description}</p>
+          {hasLongDescription && (
+            <button
+              type="button"
+              onClick={() => router.push(`/mahsulot/${product.id}`)}
+              className="text-xs font-semibold text-yellow-600 hover:text-yellow-700 mt-1"
+            >
+              {t.detailsLink}
+            </button>
+          )}
+
+          <div className="mt-auto pt-2">
+            <div className="text-center mb-2">
+              <span className="text-base font-bold text-black">{formatPrice(product.price)}</span>
+              <div className="text-xs text-gray-500 mt-0.5">
+                {isOutOfStock ? t.outOfStock : `${t.stock}: ${product.stock} dona`}
+              </div>
+            </div>
+
+            {isOutOfStock ? (
+              <div className="flex flex-col items-center space-y-2">
+                <button
+                  disabled
+                  className="w-full bg-gray-100 text-gray-400 px-4 py-2 rounded-md cursor-not-allowed font-semibold"
+                >
+                  {t.outOfStock}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openRestockModal(product)}
+                  className="text-sm font-semibold text-yellow-600 hover:text-yellow-700 underline"
+                >
+                  {t.restockLink}
+                </button>
+              </div>
+            ) : (
+              <div className="flex space-x-2">
+                <button
+                  onClick={(e) => handleBuyNow(e, product.id)}
+                  className="flex-1 bg-yellow-400 text-black px-3 py-2 rounded-md text-sm font-semibold hover:bg-yellow-500 transition-colors duration-200"
+                >
+                  {t.buyNow}
+                </button>
+                <button
+                  onClick={() => handleAddToCart(product)}
+                  className="flex-1 bg-gray-900 text-white px-3 py-2 rounded-md text-sm font-semibold hover:bg-gray-800 transition-colors duration-200"
+                >
+                  {t.addToCart}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Handle successful authentication
@@ -339,6 +529,14 @@ export default function MahsulotlarPage() {
     });
   }
 
+  if (searchTerm.trim()) {
+    activeFilterTags.push({
+      key: 'search',
+      label: `“${searchTerm.trim()}”`,
+      onRemove: () => setSearchTerm(''),
+    });
+  }
+
   const activeFilterCount = activeFilterTags.length;
 
   return (
@@ -358,19 +556,46 @@ export default function MahsulotlarPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32 md:pb-16">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">{t.products}</h1>
-
-        {/* Mobile Filter Button */}
-        <div className="md:hidden flex justify-end mb-4">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h1 className="text-3xl font-bold text-gray-900">{t.products}</h1>
           <button 
             onClick={() => setIsFilterMenuOpen(true)}
-            className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-semibold flex items-center space-x-2"
+            className="md:hidden bg-white border border-gray-200 text-gray-900 px-4 py-2 rounded-2xl font-semibold flex items-center space-x-2 shadow-sm"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM5 10a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H6a1 1 0 01-1-1v-2zM7 16a1 1 0 011-1h8a1 1 0 011 1v2a1 1 0 01-1 1H8a1 1 0 01-1-1v-2z" />
             </svg>
             <span>{t.filter}</span>
           </button>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between mb-6">
+          <div className="relative w-full">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={t.searchProductsPlaceholder}
+              aria-label="Product search"
+              className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-12 py-3 text-sm md:text-base text-gray-900 placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 transition"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col md:flex-row gap-8">
@@ -671,151 +896,9 @@ export default function MahsulotlarPage() {
               </div>
             ) : (
               <>
-                {/* Vertical Grid for Mobile - Full Width Cards */}
-                <div className="md:hidden grid grid-cols-1 gap-4 pb-4">
-                  {filteredProducts.map((product) => (
-                    <div key={product.id} className="w-full bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200">
-                        <Link href={`/mahsulot/${product.id}`}>
-                          <div className="cursor-pointer">
-                            <div className="aspect-w-3 aspect-h-4 bg-gray-200">
-                              <Image 
-                                src={product.image || ''} 
-                                alt={product.name}
-                                width={400}
-                                height={400}
-                                className="w-full h-64 md:h-48 object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.src = 'https://picsum.photos/300/400?random=error';
-                                }}
-                              />
-                            </div>
-                            <div className="p-3">
-                              <div className="flex justify-between items-start mb-1">
-                                <h3 className="text-md font-semibold text-black line-clamp-1">{product.name}</h3>
-                                <span className={`px-1 py-0.5 text-xs rounded-full ${
-                                  product.category === 'erkak' ? 'bg-blue-100 text-blue-800' :
-                                  product.category === 'ayol' ? 'bg-pink-100 text-pink-800' :
-                                  'bg-purple-100 text-purple-800'
-                                }`}>
-                                  {product.category === 'erkak' ? t.men : 
-                                   product.category === 'ayol' ? t.women : 'Unisex'}
-                                </span>
-                              </div>
-                              <p className="text-black mb-1 text-sm font-medium line-clamp-1">{product.brand}</p>
-                            </div>
-                          </div>
-                        </Link>
-                        <div className="px-3 pb-3">
-                          <div className="text-center mb-2">
-                            <span className="text-lg font-bold text-black">
-                              {formatPrice(product.price)}
-                            </span>
-                            <div className="text-sm text-gray-500 mt-1">
-                              {t.stock}: {product.stock} dona
-                            </div>
-                          </div>
-                          <div className="flex space-x-2">
-                            <button 
-                              onClick={(e) => handleBuyNow(e, product.id)}
-                              className="flex-1 bg-yellow-400 text-black px-3 py-2 rounded-md hover:bg-yellow-500 transition-colors duration-200 text-sm font-medium"
-                            >
-                              {t.buyNow}
-                            </button>
-                            <button 
-                              onClick={() => handleAddToCart(product)}
-                              className="flex-1 bg-gray-800 text-white px-3 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200 text-sm font-medium"
-                            >
-                              {t.addToCart}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredProducts.map((product) => renderProductCard(product))}
                 </div>
-
-                {/* Vertical Grid for Desktop and Larger Screens */}
-                <div className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredProducts.map((product) => (
-                  <div key={product.id} className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200">
-                    <Link href={`/mahsulot/${product.id}`}>
-                      <div className="cursor-pointer">
-                        <div className="aspect-w-3 aspect-h-4 bg-gray-200">
-                          <Image 
-                            src={product.image || ''} 
-                            alt={product.name}
-                            width={256} // w-64, h-64
-                            height={256} // w-64, h-64
-                            className="w-full h-64 object-cover"
-                            onError={(e) => {
-                              e.currentTarget.src = 'https://picsum.photos/300/400?random=error';
-                            }}
-                          />
-                        </div>
-                        <div className="p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-lg font-semibold text-black">{product.name}</h3>
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              product.category === 'erkak' ? 'bg-blue-100 text-blue-800' :
-                              product.category === 'ayol' ? 'bg-pink-100 text-pink-800' :
-                              'bg-purple-100 text-purple-800'
-                            }`}>
-                                {product.category === 'erkak' ? t.men : 
-                                 product.category === 'ayol' ? t.women : 'Unisex'}
-                            </span>
-                          </div>
-                          <p className="text-black mb-2 font-medium">{product.brand}</p>
-                          {product.fragrance_notes && product.fragrance_notes.length > 0 && (
-                            <div className="mb-3">
-                              <div className="flex flex-wrap gap-1">
-                                {product.fragrance_notes.slice(0, 3).map((note, index) => (
-                                  <span key={index} className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                                    {note}
-                                  </span>
-                                ))}
-                                {product.fragrance_notes.length > 3 && (
-                                  <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
-                                    +{product.fragrance_notes.length - 3}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          <div className="mb-3">
-                            <p className="text-gray-600 text-sm line-clamp-2">
-                              {product.description}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-
-                    <div className="px-4 pb-4">
-                      <div className="text-center mb-3">
-                        <span className="text-lg font-bold text-black">
-                          {formatPrice(product.price)}
-                        </span>
-                        <div className="text-xs text-gray-500">
-                            {t.stock}: {product.stock} dona
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={(e) => handleBuyNow(e, product.id)}
-                          className="flex-1 bg-yellow-400 text-black px-4 py-2 rounded-md hover:bg-yellow-500 transition-colors duration-200 font-medium"
-                        >
-                            {t.buyNow}
-                        </button>
-                        <button 
-                          onClick={() => handleAddToCart(product)}
-                          className="flex-1 bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors duration-200 font-medium"
-                        >
-                            {t.addToCart}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
               </>
             )}
 
@@ -831,6 +914,84 @@ export default function MahsulotlarPage() {
           </div>
         </div>
       </div>
+
+      {restockModalOpen && restockProduct && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-3 py-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto">
+            <div className="flex items-center justify-between px-4 py-4 sm:px-6 sm:py-6 border-b border-gray-100">
+              <div>
+                <p className="text-sm text-gray-500 mb-1">{t.restockModalTitle}</p>
+                <h3 className="text-2xl font-bold text-gray-900">{restockProduct.name}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeRestockModal}
+                className="text-gray-400 hover:text-gray-600 rounded-full w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-4 py-4 sm:px-6 sm:py-6 space-y-4">
+              <p className="text-gray-600 text-sm">{t.restockModalDescription}</p>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm">
+                <p className="font-semibold text-gray-900">{restockProduct.brand}</p>
+                <p className="text-gray-500">{t.stock}: {restockProduct.stock ?? 0} dona</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t.restockName}</label>
+                <input
+                  type="text"
+                  value={restockForm.name}
+                  onChange={(e) => handleRestockInputChange('name', e.target.value)}
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 bg-white text-gray-900 placeholder-gray-400 focus:border-yellow-400 focus:ring-0"
+                  placeholder="Asil Aliyev"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t.restockPhone}</label>
+                <input
+                  type="text"
+                  value={restockForm.phone}
+                  onChange={(e) => handleRestockInputChange('phone', e.target.value)}
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 bg-white text-gray-900 placeholder-gray-400 focus:border-yellow-400 focus:ring-0"
+                  placeholder="+998 90 000 00 00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t.restockMessageLabel}</label>
+                <textarea
+                  value={restockForm.message}
+                  onChange={(e) => handleRestockInputChange('message', e.target.value)}
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 h-28 resize-none bg-white text-gray-900 placeholder-gray-400 focus:border-yellow-400 focus:ring-0"
+                  placeholder={t.restockMessagePlaceholder}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeRestockModal}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium"
+                >
+                  {t.restockCancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestockSubmit}
+                  disabled={isRestockSubmitting}
+                  className="px-4 py-2 rounded-xl bg-yellow-500 text-black font-semibold hover:bg-yellow-600 transition-colors disabled:opacity-60"
+                >
+                  {isRestockSubmitting ? t.loading : t.restockSend}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Auth Modal */}
       <AuthModal 

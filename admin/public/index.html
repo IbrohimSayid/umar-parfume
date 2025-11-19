@@ -11,6 +11,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+      body {
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
       .custom-scrollbar::-webkit-scrollbar {
         width: 8px;
       }
@@ -24,6 +27,60 @@
       }
       .custom-scrollbar::-webkit-scrollbar-thumb:hover {
         background: linear-gradient(to bottom, #f59e0b, #d97706);
+      }
+      body.dark-mode {
+        background-color: #0f172a;
+        color: #f8fafc;
+      }
+      body.dark-mode .bg-white {
+        background-color: #1f2937 !important;
+        color: #f8fafc !important;
+      }
+      body.dark-mode .bg-white\/95 {
+        background-color: rgba(15, 23, 42, 0.95) !important;
+        color: #f8fafc !important;
+      }
+      body.dark-mode .bg-white\/70 {
+        background-color: rgba(15, 23, 42, 0.7) !important;
+      }
+      body.dark-mode .text-gray-900 {
+        color: #f8fafc !important;
+      }
+      body.dark-mode .text-gray-700 {
+        color: #e2e8f0 !important;
+      }
+      body.dark-mode .text-gray-600 {
+        color: #cbd5f5 !important;
+      }
+      body.dark-mode .text-gray-500 {
+        color: #94a3b8 !important;
+      }
+      body.dark-mode .border-gray-100 {
+        border-color: rgba(148, 163, 184, 0.3) !important;
+      }
+      body.dark-mode .border-gray-200 {
+        border-color: rgba(148, 163, 184, 0.45) !important;
+      }
+      body.dark-mode .bg-gray-50 {
+        background-color: #0f172a !important;
+      }
+      body.dark-mode .bg-gray-100 {
+        background-color: #1e293b !important;
+      }
+      body.dark-mode .bg-gray-200 {
+        background-color: #273449 !important;
+      }
+      body.dark-mode input,
+      body.dark-mode select,
+      body.dark-mode textarea {
+        background-color: #0f172a !important;
+        color: #f8fafc !important;
+        border-color: rgba(148, 163, 184, 0.45) !important;
+      }
+      body.dark-mode .shadow-lg,
+      body.dark-mode .shadow-xl,
+      body.dark-mode .shadow-2xl {
+        box-shadow: 0 25px 45px rgba(15, 23, 42, 0.6) !important;
       }
     </style>
   </head>

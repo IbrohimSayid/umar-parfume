@@ -48,6 +48,20 @@ interface Translations {
   addToCart: string;
   buyNow: string;
   quantity: string;
+  outOfStock: string;
+  restockLink: string;
+  detailsLink: string;
+  restockModalTitle: string;
+  restockModalDescription: string;
+  restockName: string;
+  restockPhone: string;
+  restockMessageLabel: string;
+  restockMessagePlaceholder: string;
+  restockSend: string;
+  restockCancel: string;
+  restockSuccess: string;
+  restockError: string;
+  restockDefaultMessage: string;
   
   // Orders
   orderHistory: string;
@@ -130,6 +144,7 @@ interface Translations {
   noProductsFound: string;
   noProductsFoundDesc: string;
   view: string;
+  searchProductsPlaceholder: string;
 
   // Profile page
   myProfile: string;
@@ -190,6 +205,20 @@ const translations: Record<Language, Translations> = {
     addToCart: 'Savatga qo\'shish',
     buyNow: 'Xarid qilish',
     quantity: 'Miqdor',
+    outOfStock: 'Mavjud emas',
+    restockLink: 'Agar talab bo\'lsa olib kelamiz',
+    detailsLink: 'Batafsil',
+    restockModalTitle: 'Talab bildirish',
+    restockModalDescription: 'Mahsulot qayta kelishini xohlaysizmi? Bizga xabar qoldiring.',
+    restockName: 'Ism (ixtiyoriy)',
+    restockPhone: 'Telefon (ixtiyoriy)',
+    restockMessageLabel: 'Xabaringiz',
+    restockMessagePlaceholder: 'Salom, ushbu mahsulotdan yana olib kelsangiz...',
+    restockSend: 'Yuborish',
+    restockCancel: 'Yopish',
+    restockSuccess: 'Talab xabari yuborildi! Tez orada aloqaga chiqamiz.',
+    restockError: 'Xabar yuborishda xatolik yuz berdi',
+    restockDefaultMessage: 'mahsulotidan yana olib kelishingizni so\'rayman.',
     
     // Orders
     orderHistory: 'Buyurtmalar tarixi',
@@ -272,6 +301,7 @@ const translations: Record<Language, Translations> = {
     noProductsFound: 'Mahsulotlar topilmadi',
     noProductsFoundDesc: 'Siz talab qilgan shartlarga mos keluvchi mahsulotlar yo\'q.',
     view: 'Ko\'rish',
+    searchProductsPlaceholder: 'Mahsulot yoki brend bo\'yicha qidirish',
 
     // Profile page
     myProfile: 'Mening profilim',
@@ -329,6 +359,20 @@ const translations: Record<Language, Translations> = {
     addToCart: 'В корзину',
     buyNow: 'Купить сейчас',
     quantity: 'Количество',
+    outOfStock: 'Нет в наличии',
+    restockLink: 'Сообщить о наличии',
+    detailsLink: 'Подробнее',
+    restockModalTitle: 'Запрос на поставку',
+    restockModalDescription: 'Оставьте сообщение, если хотите получить этот товар снова.',
+    restockName: 'Имя (необязательно)',
+    restockPhone: 'Телефон (необязательно)',
+    restockMessageLabel: 'Сообщение',
+    restockMessagePlaceholder: 'Здравствуйте, пожалуйста, привезите этот аромат ещё раз...',
+    restockSend: 'Отправить',
+    restockCancel: 'Закрыть',
+    restockSuccess: 'Запрос успешно отправлен! Мы свяжемся с вами.',
+    restockError: 'Ошибка при отправке сообщения',
+    restockDefaultMessage: 'пожалуйста, привезите снова.',
     
     // Orders
     orderHistory: 'История заказов',
@@ -411,6 +455,7 @@ const translations: Record<Language, Translations> = {
     noProductsFound: 'Товары не найдены',
     noProductsFoundDesc: 'Нет товаров, соответствующих вашим критериям.',
     view: 'Просмотр',
+    searchProductsPlaceholder: 'Поиск по товару или бренду',
 
     // Profile page
     myProfile: 'Мой профиль',

@@ -25,7 +25,9 @@ const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 // Admin chat ID (bu yerga o'z Telegram ID ngizni qo'ying)
 // Botga /start yuborsangiz, console da sizning chat ID chiqadi
-let ADMIN_CHAT_ID = null;
+// Yoki environment variable orqali: ADMIN_CHAT_ID=your_chat_id
+let ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID ? parseInt(process.env.ADMIN_CHAT_ID) : null;
+const processedOrderIds = new Set();
 
 console.log('🤖 Umar Perfume Telegram Bot ishga tushdi...');
 
@@ -40,6 +42,13 @@ bot.onText(/\/start/, (msg) => {
     if (!ADMIN_CHAT_ID) {
         ADMIN_CHAT_ID = chatId;
         console.log(`👑 Admin chat ID o'rnatildi: ${chatId}`);
+        
+        // Admin ID o'rnatilgandan keyin kuzatishni boshlash
+        setTimeout(() => {
+            console.log('✅ Admin Chat ID o\'rnatildi, kuzatish boshlanmoqda...');
+            startListeningToOrders();
+            startListeningToProducts();
+        }, 1000);
     }
     
     const welcomeMessage = `
@@ -215,6 +224,7 @@ function startListeningToOrders() {
         // Birinchi yuklashda barcha buyurtmalarni olish va oxirgi vaqtni saqlash
         if (isInitialLoad) {
             if (snapshot.docs.length > 0) {
+                snapshot.docs.forEach((doc) => processedOrderIds.add(doc.id));
                 const latestOrder = snapshot.docs
                     .map(doc => {
                         const data = doc.data();
@@ -232,6 +242,7 @@ function startListeningToOrders() {
                     lastOrderTimestamp = Date.now();
                 }
             } else {
+                snapshot.docs.forEach((doc) => processedOrderIds.add(doc.id));
                 lastOrderTimestamp = Date.now();
             }
             isInitialLoad = false;
@@ -242,19 +253,22 @@ function startListeningToOrders() {
         // Keyingi o'zgarishlarni kuzatish
         snapshot.docChanges().forEach((change) => {
             if (change.type === 'added') {
-                const order = { id: change.doc.id, ...change.doc.data() };
+                const orderId = change.doc.id;
+                if (processedOrderIds.has(orderId)) {
+                    console.log('🔁 Bu buyurtma allaqachon qayd etilgan, xabar yuborilmaydi:', orderId);
+                    return;
+                }
+                
+                processedOrderIds.add(orderId);
+                const order = { id: orderId, ...change.doc.data() };
                 const orderTime = order.createdAt ? new Date(order.createdAt).getTime() : Date.now();
                 
                 console.log('🆕 Yangi buyurtma topildi:', order.id, 'Vaqt:', new Date(orderTime).toLocaleString('uz-UZ'));
                 
-                // Faqat oxirgi vaqtdan keyin yaratilgan buyurtmalarni yuborish
-                if (orderTime > lastOrderTimestamp) {
-                    console.log('📤 Buyurtma xabari yuborilmoqda...');
-                    sendNewOrderNotification(order);
-                    lastOrderTimestamp = Math.max(lastOrderTimestamp, orderTime);
-                } else {
-                    console.log('⏭️ Bu buyurtma eski, xabar yuborilmaydi.');
-                }
+                // Faqat yangi buyurtmalar uchun xabar yuborish
+                console.log('📤 Buyurtma xabari yuborilmoqda...');
+                sendNewOrderNotification(order);
+                lastOrderTimestamp = Math.max(lastOrderTimestamp || 0, orderTime);
             }
         });
     }, (error) => {
@@ -300,8 +314,15 @@ function startListeningToProducts() {
 
 // Bot ishga tushgandan 5 sekund keyin kuzatishni boshlash
 setTimeout(() => {
-    startListeningToOrders();
-    startListeningToProducts();
+    if (ADMIN_CHAT_ID) {
+        console.log(`✅ Admin Chat ID: ${ADMIN_CHAT_ID}`);
+        startListeningToOrders();
+        startListeningToProducts();
+    } else {
+        console.log('⚠️ ADMIN_CHAT_ID o\'rnatilmagan!');
+        console.log('📝 Botga /start buyrug\'ini yuboring yoki environment variable orqali ADMIN_CHAT_ID ni o\'rnating.');
+        console.log('💡 Masalan: ADMIN_CHAT_ID=123456789 node index.js');
+    }
 }, 5000);
 
 // Xatoliklarni tutish
